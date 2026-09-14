@@ -58,6 +58,13 @@ router.beforeEach(async (to, _from, next) => {
   const isLoggedIn = authStore.isLoggedIn
   const needsOnboarding = authStore.needsOnboarding
   const userRole = authStore.profile?.role
+  
+  if (isLoggedIn && !userRole && to.path !== '/onboarding' && to.path !== '/auth/callback')
+  {
+    next('/onboarding')
+    return
+  } 
+  
 
   // Unauthenticated → login
   if (to.meta.requiresAuth && !isLoggedIn && !needsOnboarding) {
