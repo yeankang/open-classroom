@@ -103,10 +103,10 @@ const newAssignment = ref({
 const courseId = computed(() => route.params.id as string)
 
 const submitTypes: { value: SubmitType; label: string; icon: any }[] = [
-  { value: 'complete', label: '點擊完成', icon: MousePointerClick },
-  { value: 'file', label: '檔案上傳', icon: FileText },
-  { value: 'link', label: '連結提交', icon: LinkIcon },
-  { value: 'image', label: '圖片上傳', icon: ImageIcon },
+  { value: 'complete', label: '点击完成', icon: MousePointerClick },
+  { value: 'file', label: '档案上传', icon: FileText },
+  { value: 'link', label: '连接提交', icon: LinkIcon },
+  { value: 'image', label: '图片上传', icon: ImageIcon },
 ]
 
 onMounted(async () => {
@@ -144,7 +144,7 @@ async function loadData() {
     await loadMemberNames()
   } catch (e) {
     console.error('Failed to load course detail:', e)
-    errorMessage.value = '載入課程資料失敗，請重新整理或稍後再試。'
+    errorMessage.value = '载入课程资料失败，请重新整理或稍后再试。'
   } finally {
     isLoading.value = false
   }
@@ -154,14 +154,14 @@ async function loadMemberNames() {
   const entries = await Promise.all(
     members.value.map(async (m) => {
       const profile = await findProfileById(m.studentId)
-      return [m.studentId, profile?.name ?? '未知學生'] as const
+      return [m.studentId, profile?.name ?? '未知学生'] as const
     })
   )
   memberNameMap.value = Object.fromEntries(entries)
 }
 
 function getStudentName(studentId: string): string {
-  return memberNameMap.value[studentId] ?? '未知學生'
+  return memberNameMap.value[studentId] ?? '未知学生'
 }
 
 function getSubmitTypeInfo(submitType: SubmitType) {
@@ -291,7 +291,7 @@ async function handleEditAssignment() {
 }
 
 async function handleDeleteAssignment(assignmentId: string) {
-  if (confirm('確定要刪除此作業嗎？此操作無法復原。')) {
+  if (confirm('确定要删除此作业吗？此操作无法复原。')) {
     await deleteAssignment(assignmentId)
     await loadData()
   }
@@ -322,7 +322,7 @@ async function handleSaveMaterialLinks() {
     isEditingMaterial.value = false
   } catch (e) {
     console.error('Failed to update material links:', e)
-    saveMaterialError.value = e instanceof Error ? e.message : '儲存失敗，請稍後再試。'
+    saveMaterialError.value = e instanceof Error ? e.message : '储存失败，请稍后再试。'
   } finally {
     isSavingMaterial.value = false
   }
@@ -359,7 +359,7 @@ function handleLogout() {
     <main v-if="isLoading" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <div class="flex items-center justify-center text-slate-500">
         <Loader2 class="mr-2 h-5 w-5 animate-spin" />
-        載入課程作業中...
+        载入课程作业中...
       </div>
     </main>
 
@@ -375,15 +375,15 @@ function handleLogout() {
         <div class="flex flex-wrap items-center gap-4 text-sm text-slate-600">
           <span class="flex items-center gap-1">
             <Users class="h-4 w-4" />
-            {{ members.length }} 位學生
+            {{ members.length }} 位学生
           </span>
-          <Badge variant="secondary">課程碼：{{ course.courseCode }}</Badge>
+          <Badge variant="secondary">课程码：{{ course.courseCode }}</Badge>
         </div>
         <div class="mt-4 rounded-lg border border-slate-200 bg-white p-4">
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">教材連結</h2>
+            <h2 class="text-sm font-semibold text-slate-900">教材连接</h2>
             <Button v-if="!isEditingMaterial" variant="outline" size="sm" @click="startEditMaterial">
-              {{ activeMaterialLinks.length > 0 ? '修改連結' : '新增連結' }}
+              {{ activeMaterialLinks.length > 0 ? '修改连接' : '新增链接' }}
             </Button>
           </div>
 
@@ -401,18 +401,18 @@ function handleLogout() {
                 <ExternalLink class="h-4 w-4 text-slate-400 shrink-0 group-hover:text-blue-500 transition-colors" />
                 <div>
                   <p class="text-sm font-medium text-slate-900 leading-tight">{{ link.title || link.url }}</p>
-                  <p class="text-xs text-slate-400 leading-tight mt-0.5">教材連結</p>
+                  <p class="text-xs text-slate-400 leading-tight mt-0.5">教材连接</p>
                 </div>
               </a>
             </div>
-            <p v-else class="text-sm text-slate-500">尚未設定教材連結</p>
+            <p v-else class="text-sm text-slate-500">尚未设定教材连接</p>
           </div>
 
           <!-- 編輯模式 -->
           <div v-else class="space-y-2">
             <div v-for="(link, i) in materialLinksInput" :key="i" class="flex gap-2">
               <div class="w-2/5">
-                <Input v-model="link.title" placeholder="標題（選填）" />
+                <Input v-model="link.title" placeholder="标题（选填）" />
               </div>
               <div class="flex-1">
                 <Input v-model="link.url" type="url" placeholder="https://..." />
@@ -433,9 +433,9 @@ function handleLogout() {
       <!-- Students List -->
       <Card class="mb-8">
         <CardContent class="!p-6">
-          <h2 class="text-base font-semibold text-slate-900 mb-4">學生名單</h2>
+          <h2 class="text-base font-semibold text-slate-900 mb-4">学生名单</h2>
           <div v-if="members.length === 0" class="text-center py-4 text-slate-500 text-sm">
-            尚無學生加入此課程
+            尚未有学生加入此课程
           </div>
           <div v-else class="flex flex-wrap gap-2">
             <Badge
@@ -452,17 +452,17 @@ function handleLogout() {
       <!-- Assignments -->
       <div class="space-y-4">
         <div class="flex items-center justify-between mb-2">
-          <h2 class="text-xl font-semibold text-slate-900">課程作業</h2>
+          <h2 class="text-xl font-semibold text-slate-900">课程作业</h2>
           <Button @click="isCreateDialogOpen = true">
             <Plus class="h-4 w-4 mr-2" />
-            新增作業
+            新增作业
           </Button>
         </div>
 
         <div v-if="assignments.length === 0" class="text-center py-16 text-slate-500">
           <BookOpen class="h-10 w-10 mx-auto mb-3 text-slate-300" />
-          <p class="font-medium">此課程暫無作業</p>
-          <p class="text-sm mt-1">點擊上方按鈕新增作業</p>
+          <p class="font-medium">此课程暂无作业</p>
+          <p class="text-sm mt-1">点击上方按钮新增作业</p>
         </div>
 
         <div v-else class="space-y-3">
@@ -509,7 +509,7 @@ function handleLogout() {
                 <router-link :to="`/teacher/discussion/${assignment.id}`">
                   <Button variant="ghost" size="sm" class="cursor-pointer">
                     <MessageSquare class="h-4 w-4 mr-1.5" />
-                    討論區
+                    讨论区
                     <span v-if="discussionCountMap[assignment.id]" class="ml-1.5 bg-slate-100 text-slate-600 text-xs rounded-full px-1.5 py-0.5 font-medium leading-none">
                       {{ discussionCountMap[assignment.id] }}
                     </span>
@@ -528,7 +528,7 @@ function handleLogout() {
                   @click="openPreviewDialog(assignment)"
                 >
                   <BookOpen class="h-4 w-4 mr-1.5" />
-                  預覽
+                  预览
                 </Button>
                 <Button
                   variant="ghost"
@@ -557,11 +557,11 @@ function handleLogout() {
     <Dialog v-model:open="isCreateDialogOpen" class="max-w-5xl max-h-[90vh] overflow-y-auto">
       <div class="space-y-4">
         <DialogHeader>
-          <DialogTitle>新增作業</DialogTitle>
+          <DialogTitle>新增作业</DialogTitle>
         </DialogHeader>
         <div class="space-y-4">
           <div class="space-y-2">
-            <Label for="title">作業標題</Label>
+            <Label for="title">作业标题</Label>
             <Input
               id="title"
               v-model="newAssignment.title"
@@ -569,7 +569,7 @@ function handleLogout() {
             />
           </div>
           <div class="space-y-2">
-            <Label>作業描述</Label>
+            <Label>作业描述</Label>
             <MarkdownEditor
               v-model="newAssignment.description"
               placeholder="支援 Markdown 格式，例如 **粗體**、`程式碼`、清單等"
@@ -598,7 +598,7 @@ function handleLogout() {
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="releaseDate">發布時間</Label>
+              <Label for="releaseDate">发布时间</Label>
               <Input
                 id="releaseDate"
                 v-model="newAssignment.releaseDate"
@@ -606,7 +606,7 @@ function handleLogout() {
               />
             </div>
             <div class="space-y-2">
-              <Label for="dueDate">截止時間（選填）</Label>
+              <Label for="dueDate">截止时间（选填）</Label>
               <Input
                 id="dueDate"
                 v-model="newAssignment.dueDate"
@@ -621,7 +621,7 @@ function handleLogout() {
                 type="checkbox"
                 class="w-4 h-4"
               />
-              啟用作業展示
+              启用作业展示
             </Label>
             <Label v-if="newAssignment.showcaseEnabled" class="flex items-center gap-2 ml-6">
               <input
@@ -629,7 +629,7 @@ function handleLogout() {
                 type="checkbox"
                 class="w-4 h-4"
               />
-              需要老師審核
+              需要老师审核
             </Label>
           </div>
           <div class="flex justify-end gap-2">
@@ -651,13 +651,13 @@ function handleLogout() {
       <div class="space-y-4">
         <DialogHeader>
           <DialogTitle>{{ previewAssignment?.title }}</DialogTitle>
-          <p class="text-sm text-slate-500 mt-1">這是學生會看到的作業內文</p>
+          <p class="text-sm text-slate-500 mt-1">这是学生会看到的作业内容</p>
         </DialogHeader>
         <div v-if="previewAssignment?.description" class="assignment-document">
           <MarkdownRenderer :content="previewAssignment.description" />
         </div>
         <div v-else class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
-          這份作業尚未提供詳細內容。
+          这份作业尚未提供详细内容。
         </div>
       </div>
     </Dialog>
@@ -666,22 +666,22 @@ function handleLogout() {
     <Dialog v-model:open="isEditDialogOpen" class="max-w-5xl max-h-[90vh] overflow-y-auto">
       <div class="space-y-4">
         <DialogHeader>
-          <DialogTitle>編輯作業</DialogTitle>
+          <DialogTitle>编辑作业</DialogTitle>
         </DialogHeader>
         <div class="space-y-4">
           <div class="space-y-2">
-            <Label for="edit-title">作業標題</Label>
+            <Label for="edit-title">作业标题</Label>
             <Input
               id="edit-title"
               v-model="editForm.title"
-              placeholder="輸入作業標題"
+              placeholder="输入作业标题"
             />
           </div>
           <div class="space-y-2">
             <Label>作業描述</Label>
             <MarkdownEditor
               v-model="editForm.description"
-              placeholder="支援 Markdown 格式，例如 **粗體**、`程式碼`、清單等"
+              placeholder="支援 Markdown 格式，例如 **粗体**、`程式碼`、清单等"
               minHeight="320px"
             />
           </div>
@@ -707,7 +707,7 @@ function handleLogout() {
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label for="edit-releaseDate">發布時間</Label>
+              <Label for="edit-releaseDate">发布时间</Label>
               <Input
                 id="edit-releaseDate"
                 v-model="editForm.releaseDate"
@@ -715,7 +715,7 @@ function handleLogout() {
               />
             </div>
             <div class="space-y-2">
-              <Label for="edit-dueDate">截止時間（選填）</Label>
+              <Label for="edit-dueDate">截止时间（选填）</Label>
               <Input
                 id="edit-dueDate"
                 v-model="editForm.dueDate"
@@ -730,7 +730,7 @@ function handleLogout() {
                 type="checkbox"
                 class="w-4 h-4"
               />
-              啟用作業展示
+              启用作业展示
             </Label>
             <Label v-if="editForm.showcaseEnabled" class="flex items-center gap-2 ml-6">
               <input
@@ -738,7 +738,7 @@ function handleLogout() {
                 type="checkbox"
                 class="w-4 h-4"
               />
-              需要老師審核
+              需要老师审核
             </Label>
           </div>
           <div class="flex justify-end gap-2">
@@ -748,7 +748,7 @@ function handleLogout() {
               @click="handleEditAssignment"
             >
               <Loader2 v-if="isEditing" class="mr-2 h-4 w-4 animate-spin" />
-              {{ isEditing ? '儲存中...' : '儲存變更' }}
+              {{ isEditing ? '储存中...' : '储存变更' }}
             </Button>
           </div>
         </div>
