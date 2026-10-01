@@ -72,7 +72,7 @@ const materialLinksInput = ref([
 
 const activeMaterialLinks = computed(() => course.value?.materialLinks?.filter(l => l.url) ?? [])
 
-// Preview state（以學生視角查看作業內文）
+// Preview state（以学生视角检查作业内容）
 const isPreviewDialogOpen = ref(false)
 const previewAssignment = ref<Assignment | null>(null)
 
@@ -434,6 +434,10 @@ function handleLogout() {
       <Card class="mb-8">
         <CardContent class="!p-6">
           <h2 class="text-base font-semibold text-slate-900 mb-4">学生名单</h2>
+             <!-- 新增：添加学生按钮 -->
+          <Button @click="openAddStudentModal">
+          + 添加学生
+          </Button>
           <div v-if="members.length === 0" class="text-center py-4 text-slate-500 text-sm">
             尚未有学生加入此课程
           </div>
