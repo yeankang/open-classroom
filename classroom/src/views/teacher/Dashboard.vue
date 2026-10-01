@@ -72,7 +72,7 @@ async function loadCourses() {
     await loadCourseCounts()
   } catch (e) {
     console.error('Failed to load teacher dashboard:', e)
-    loadError.value = e instanceof Error ? e.message : '載入課程清單失敗'
+    loadError.value = e instanceof Error ? e.message : '载入课程清单失败'
   } finally {
     isReloading.value = false
   }
@@ -116,7 +116,7 @@ async function handleCreateCourse() {
         courseCode: generateCourseCode(),
         teacherId: authStore.profile.id,
       }, authStore.session?.access_token),
-      '建立课程逾时，请确认网路连线或 Supabase 状态后再试。',
+      '建立课程超时，请确认网路连线或 Supabase 状态后再试。',
       35000
     )
 
@@ -128,7 +128,7 @@ async function handleCreateCourse() {
 
     withTimeout(
       loadCourses(),
-      '课程已送出，但重新载入列表逾时。请重新整理页面确认结果。'
+      '课程已送出，但重新载入列表超时。请重新整理页面确认结果。'
     ).catch((e) => {
       console.warn('Created course, but failed to refresh course list:', e)
     })
