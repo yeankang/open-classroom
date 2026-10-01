@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import MarkdownEditor from '@/components/ui/MarkdownEditor.vue'
-import MarkdownRenderer from '@/components/ui/MarkdownRenderer.vue'
-import { Card, CardContent } from '@/components/ui/Card'
+import { Textarea } from '@/components/ui/Textarea'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Label } from '@/components/ui/Label'
 import { LoadErrorBanner } from '@/components/ui/LoadErrorBanner'
@@ -16,322 +15,251 @@ import {
   DialogTitle,
 } from '@/components/ui/Dialog'
 import {
-  ArrowLeft,
-  BookOpen,
   LogOut,
+  BookOpen,
   Plus,
   Users,
-  Clock,
-  CalendarDays,
-  MousePointerClick,
-  FileText,
-  Link as LinkIcon,
-  ExternalLink,
-  Image as ImageIcon,
   Loader2,
-  Trash2,
-  Eye,
-  Pencil,
-  MessageSquare,
+  Key,
 } from 'lucide-vue-next'
 import {
-  findCourseById,
-  updateCourse,
-  getAssignmentsByCourse,
+  getCoursesByTeacher,
   getMembersByCourse,
-  findProfileById,
-  saveAssignment,
-  updateAssignment,
-  deleteAssignment,
-  getDiscussionCountsByAssignments,
+  getAssignmentsByCourse,
+  saveCourse,
+  generateCourseCode,
 } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
-import type { Course, Assignment, SubmitType, CourseMember } from '@/types'
+import type { Course } from '@/types'
+
+interface ApiKey {
+  id: string
+  label: string
+  role: string
+  created_at: string
+  last_used_at: string | null
+}
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 
-const course = ref<Course | null>(null)
-const assignments = ref<Assignment[]>([])
-const members = ref<CourseMember[]>([])
-const memberNameMap = ref<Record<string, string>>({})
+const myCourses = ref<Course[]>([])
+const studentCountMap = ref<Record<string, number>>({})
+const assignmentCountMap = ref<Record<string, number>>({})
 const isCreateDialogOpen = ref(false)
 const isCreating = ref(false)
-const discussionCountMap = ref<Record<string, number>>({})
-const isLoading = ref(true)
-const errorMessage = ref('')
-const isEditingMaterial = ref(false)
-const isSavingMaterial = ref(false)
-const saveMaterialError = ref('')
-const materialLinksInput = ref([
-  { title: '', url: '' },
-  { title: '', url: '' },
-  { title: '', url: '' },
-])
+const createCourseError = ref('')
+const loadError = ref<string | null>(null)
+const isReloading = ref(false)
 
-const activeMaterialLinks = computed(() => course.value?.materialLinks?.filter(l => l.url) ?? [])
-
-// Preview state（以学生视角检查作业内容）
-const isPreviewDialogOpen = ref(false)
-const previewAssignment = ref<Assignment | null>(null)
-
-// Edit state
-const isEditDialogOpen = ref(false)
-const editingAssignment = ref<Assignment | null>(null)
-const isEditing = ref(false)
-const editForm = ref({
-  title: '',
+const newCourse = ref({
+  name: '',
   description: '',
-  submitType: 'complete' as SubmitType,
-  releaseDate: '',
-  dueDate: '',
-  showcaseEnabled: true,
-  showcaseRequireApproval: true,
 })
 
-const newAssignment = ref({
-  title: '',
-  description: '',
-  submitType: 'complete' as SubmitType,
-  releaseDate: '',
-  dueDate: '',
-  showcaseEnabled: true,
-  showcaseRequireApproval: true,
-})
-
-const courseId = computed(() => route.params.id as string)
-
-const submitTypes: { value: SubmitType; label: string; icon: any }[] = [
-  { value: 'complete', label: '点击完成', icon: MousePointerClick },
-  { value: 'file', label: '档案上传', icon: FileText },
-  { value: 'link', label: '连接提交', icon: LinkIcon },
-  { value: 'image', label: '图片上传', icon: ImageIcon },
-]
+const userName = computed(() => authStore.profile?.name || '老师')
 
 onMounted(async () => {
-  await loadData()
+  await loadCourses()
 })
 
-async function loadData() {
-  isLoading.value = true
-  errorMessage.value = ''
-
+async function loadCourses() {
+  if (!authStore.profile) return
+  isReloading.value = true
+  loadError.value = null
   try {
-    if (!authStore.profile && authStore.user) {
-      await authStore.refreshProfile()
-    }
-
-    if (!authStore.profile) {
-      router.push('/login')
-      return
-    }
-
-    const courseData = await findCourseById(courseId.value)
-    if (!courseData || courseData.teacherId !== authStore.profile.id) {
-      router.push('/teacher')
-      return
-    }
-
-    course.value = courseData
-    const [assignmentData, memberData] = await Promise.all([
-      getAssignmentsByCourse(courseId.value),
-      getMembersByCourse(courseId.value),
-    ])
-    assignments.value = assignmentData
-    members.value = memberData
-    discussionCountMap.value = await getDiscussionCountsByAssignments(assignments.value.map(a => a.id))
-    await loadMemberNames()
+    myCourses.value = await getCoursesByTeacher(authStore.profile.id)
+    await loadCourseCounts()
   } catch (e) {
-    console.error('Failed to load course detail:', e)
-    errorMessage.value = '载入课程资料失败，请重新整理或稍后再试。'
+    console.error('Failed to load teacher dashboard:', e)
+    loadError.value = e instanceof Error ? e.message : '載入課程清單失敗'
   } finally {
-    isLoading.value = false
+    isReloading.value = false
   }
 }
 
-async function loadMemberNames() {
-  const entries = await Promise.all(
-    members.value.map(async (m) => {
-      const profile = await findProfileById(m.studentId)
-      return [m.studentId, profile?.name ?? '未知学生'] as const
+async function loadCourseCounts() {
+  const counts = await Promise.all(
+    myCourses.value.map(async (course) => {
+      const [members, assignments] = await Promise.all([
+        getMembersByCourse(course.id),
+        getAssignmentsByCourse(course.id),
+      ])
+      return { id: course.id, students: members.length, assignments: assignments.length }
     })
   )
-  memberNameMap.value = Object.fromEntries(entries)
+  counts.forEach(({ id, students, assignments }) => {
+    studentCountMap.value[id] = students
+    assignmentCountMap.value[id] = assignments
+  })
 }
 
-function getStudentName(studentId: string): string {
-  return memberNameMap.value[studentId] ?? '未知学生'
+function getStudentCount(courseId: string): number {
+  return studentCountMap.value[courseId] ?? 0
 }
 
-function getSubmitTypeInfo(submitType: SubmitType) {
-  return submitTypes.find(t => t.value === submitType)
+function getAssignmentCount(courseId: string): number {
+  return assignmentCountMap.value[courseId] ?? 0
 }
 
-function stripMarkdown(text: string, maxLines = 5): string {
-  return text
-    .replace(/#{1,6}\s+/g, '')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/`(.+?)`/g, '$1')
-    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
-    .replace(/^[-*+>]\s+/gm, '')
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 0)
-    .slice(0, maxLines)
-    .join('\n')
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })
-}
-
-function toLocalDatetimeInput(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-async function handleCreateAssignment() {
-  if (!newAssignment.value.title.trim() || !course.value) return
+async function handleCreateCourse() {
+  if (!newCourse.value.name.trim() || !authStore.profile) return
 
   isCreating.value = true
+  createCourseError.value = ''
 
   try {
-    const maxOrderIndex = assignments.value.length > 0
-      ? Math.max(...assignments.value.map(a => a.orderIndex))
-      : -1
+    const createdCourse = await withTimeout(
+      saveCourse({
+        name: newCourse.value.name.trim(),
+        description: newCourse.value.description.trim(),
+        courseCode: generateCourseCode(),
+        teacherId: authStore.profile.id,
+      }, authStore.session?.access_token),
+      '建立课程逾时，请确认网路连线或 Supabase 状态后再试。',
+      35000
+    )
 
-    const created = await saveAssignment({
-      courseId: course.value.id,
-      title: newAssignment.value.title.trim(),
-      description: newAssignment.value.description.trim(),
-      orderIndex: maxOrderIndex + 1,
-      submitType: newAssignment.value.submitType,
-      releaseDate: newAssignment.value.releaseDate
-        ? new Date(newAssignment.value.releaseDate).toISOString()
-        : new Date().toISOString(),
-      dueDate: newAssignment.value.dueDate
-        ? new Date(newAssignment.value.dueDate).toISOString()
-        : undefined,
-      isActive: true,
-      showcaseEnabled: newAssignment.value.showcaseEnabled,
-      showcaseRequireApproval: newAssignment.value.showcaseRequireApproval,
-    })
-
-    // Notify enrolled students via email
-    supabase.functions.invoke('send-email', {
-      body: { assignmentId: created.id, type: 'assignment_released' }
-    }).catch(console.error) // Non-blocking: don't fail if email fails
-
-    newAssignment.value = {
-      title: '',
-      description: '',
-      submitType: 'complete',
-      releaseDate: '',
-      dueDate: '',
-      showcaseEnabled: true,
-      showcaseRequireApproval: true,
-    }
+    myCourses.value = [createdCourse, ...myCourses.value.filter(course => course.id !== createdCourse.id)]
+    studentCountMap.value[createdCourse.id] = 0
+    assignmentCountMap.value[createdCourse.id] = 0
+    newCourse.value = { name: '', description: '' }
     isCreateDialogOpen.value = false
-    await loadData()
+
+    withTimeout(
+      loadCourses(),
+      '课程已送出，但重新载入列表逾时。请重新整理页面确认结果。'
+    ).catch((e) => {
+      console.warn('Created course, but failed to refresh course list:', e)
+    })
   } catch (e) {
-    console.error('Failed to create assignment:', e)
+    console.error('Failed to create course:', e)
+    createCourseError.value = getCreateCourseErrorMessage(e)
   } finally {
     isCreating.value = false
   }
 }
 
-function openPreviewDialog(assignment: Assignment) {
-  previewAssignment.value = assignment
-  isPreviewDialogOpen.value = true
+function withTimeout<T>(promise: Promise<T>, message: string, timeoutMs = 15000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_resolve, reject) => {
+      window.setTimeout(() => reject(new Error(message)), timeoutMs)
+    }),
+  ])
 }
 
-function openEditDialog(assignment: Assignment) {
-  editingAssignment.value = assignment
-  editForm.value = {
-    title: assignment.title,
-    description: assignment.description,
-    submitType: assignment.submitType,
-    releaseDate: toLocalDatetimeInput(assignment.releaseDate),
-    dueDate: assignment.dueDate ? toLocalDatetimeInput(assignment.dueDate) : '',
-    showcaseEnabled: assignment.showcaseEnabled,
-    showcaseRequireApproval: assignment.showcaseRequireApproval,
+function getCreateCourseErrorMessage(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e)
+
+  if (message.includes('schema cache')) {
+    return '建立失败：Supabase schema cache 尚未更新，请稍后再试。'
   }
-  isEditDialogOpen.value = true
+
+  return message || '建立课程失败，请稍后再试。'
 }
 
-async function handleEditAssignment() {
-  if (!editForm.value.title.trim() || !editingAssignment.value) return
+const isApiKeyDialogOpen = ref(false)
+const apiKeys = ref<ApiKey[]>([])
+const newKeyLabel = ref('')
+const isGeneratingKey = ref(false)
+const generatedKey = ref('')
+const isCopied = ref(false)
 
-  isEditing.value = true
+async function loadApiKeys() {
+  const { data } = await supabase
+    .from('api_keys')
+    .select('id, label, role, created_at, last_used_at')
+    .order('created_at', { ascending: false })
+  apiKeys.value = data || []
+}
+
+async function generateApiKey() {
+  if (!newKeyLabel.value.trim()) return
+  isGeneratingKey.value = true
   try {
-    await updateAssignment(editingAssignment.value.id, {
-      title: editForm.value.title.trim(),
-      description: editForm.value.description.trim(),
-      submitType: editForm.value.submitType,
-      releaseDate: editForm.value.releaseDate
-        ? new Date(editForm.value.releaseDate).toISOString()
-        : editingAssignment.value.releaseDate,
-      dueDate: editForm.value.dueDate
-        ? new Date(editForm.value.dueDate).toISOString()
-        : undefined,
-      showcaseEnabled: editForm.value.showcaseEnabled,
-      showcaseRequireApproval: editForm.value.showcaseRequireApproval,
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const res = await fetch('/api/keys', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ label: newKeyLabel.value.trim() }),
     })
-    isEditDialogOpen.value = false
-    editingAssignment.value = null
-    await loadData()
-  } catch (e) {
-    console.error('Failed to update assignment:', e)
+    const result = await res.json()
+    if (res.ok) {
+      generatedKey.value = result.key
+      newKeyLabel.value = ''
+      await loadApiKeys()
+    }
   } finally {
-    isEditing.value = false
+    isGeneratingKey.value = false
   }
 }
 
-async function handleDeleteAssignment(assignmentId: string) {
-  if (confirm('确定要删除此作业吗？此操作无法复原。')) {
-    await deleteAssignment(assignmentId)
-    await loadData()
-  }
+async function revokeApiKey(id: string) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+  await fetch(`/api/keys/delete?id=${id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${session.access_token}` },
+  })
+  await loadApiKeys()
 }
 
-function startEditMaterial() {
-  const existing = course.value?.materialLinks ?? []
-  materialLinksInput.value = [
-    { title: existing[0]?.title ?? '', url: existing[0]?.url ?? '' },
-    { title: existing[1]?.title ?? '', url: existing[1]?.url ?? '' },
-    { title: existing[2]?.title ?? '', url: existing[2]?.url ?? '' },
-  ]
-  isEditingMaterial.value = true
+async function copyKey() {
+  await navigator.clipboard.writeText(generatedKey.value)
+  isCopied.value = true
+  setTimeout(() => { isCopied.value = false }, 2000)
 }
 
-async function handleSaveMaterialLinks() {
-  if (!course.value) return
-
-  isSavingMaterial.value = true
-  saveMaterialError.value = ''
-
-  try {
-    const materialLinks = materialLinksInput.value
-      .filter(l => l.url.trim())
-      .map(l => ({ title: l.title.trim(), url: l.url.trim() }))
-    await updateCourse(course.value.id, { materialLinks })
-    course.value = { ...course.value, materialLinks: materialLinks.length > 0 ? materialLinks : undefined }
-    isEditingMaterial.value = false
-  } catch (e) {
-    console.error('Failed to update material links:', e)
-    saveMaterialError.value = e instanceof Error ? e.message : '储存失败，请稍后再试。'
-  } finally {
-    isSavingMaterial.value = false
-  }
+function openApiKeyDialog() {
+  generatedKey.value = ''
+  newKeyLabel.value = ''
+  isApiKeyDialogOpen.value = true
+  loadApiKeys()
 }
 
 function handleLogout() {
   authStore.logout()
   router.push('/login')
 }
+
+// ========== 新增【添加学生】相关变量和函数 ==========
+const showAddStudentModal = ref(false)
+const searchStudentList = ref<Array<{id:string,name:string}>>([])
+const searchKeyword = ref('')
+
+// 打开弹窗
+const openAddStudentModal = () => {
+  showAddStudentModal.value = true
+  searchKeyword.value = ''
+  searchStudentList.value = []
+}
+
+// 搜索学生（只查role=student）
+const searchStudents = async () => {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, name')
+    .eq('role','student')
+    .ilike('name',`%${searchKeyword.value}%`)
+  searchStudentList.value = data || []
+}
+
+// 加入课程，插入course_member
+const addStudentToCourse = async (studentId: string) => {
+  if (!courseId.value) return
+  await supabase.from('course_member').insert({
+    course_id: courseId.value,
+    student_id: studentId
+  })
+  showAddStudentModal.value = false
+  await loadData() // 刷新学生名单
+}
+  
 </script>
 
 <template>
@@ -339,217 +267,74 @@ function handleLogout() {
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <Button variant="ghost" size="sm" @click="router.push('/teacher')">
-            <ArrowLeft class="h-4 w-4 mr-2" />
-            返回
-          </Button>
-          <div v-if="course" class="flex items-center gap-2">
-            <BookOpen class="h-6 w-6 text-slate-900" />
-            <span class="text-xl font-bold">{{ course.name }}</span>
-          </div>
+        <div class="flex items-center gap-2">
+          <BookOpen class="h-6 w-6 text-slate-900" />
+          <span class="text-xl font-bold">作业管理系统 - 教师端</span>
         </div>
-        <Button variant="ghost" size="sm" @click="handleLogout">
-          <LogOut class="h-4 w-4 mr-2" />
-          登出
-        </Button>
+        <div class="flex items-center gap-4">
+          <span class="text-sm text-slate-600">{{ userName }}</span>
+          <Button variant="outline" size="sm" @click="openApiKeyDialog">
+            <Key class="w-4 h-4 mr-1" />
+            API Keys
+          </Button>
+          <Button variant="ghost" size="sm" @click="handleLogout">
+            <LogOut class="h-4 w-4 mr-2" />
+            登出
+          </Button>
+        </div>
       </div>
     </header>
 
-    <main v-if="isLoading" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-      <div class="flex items-center justify-center text-slate-500">
-        <Loader2 class="mr-2 h-5 w-5 animate-spin" />
-        载入课程作业中...
-      </div>
-    </main>
-
-    <main v-else-if="errorMessage" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-      <LoadErrorBanner :message="errorMessage" :is-retrying="isLoading" @retry="loadData" />
-    </main>
-
     <!-- Main Content -->
-    <main v-else-if="course" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Course Info -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <LoadErrorBanner
+        v-if="loadError"
+        :message="loadError"
+        :is-retrying="isReloading"
+        class="mb-6"
+        @retry="loadCourses"
+      />
+
+      <!-- Create Course Button -->
       <div class="mb-8">
-        <p class="text-slate-600 mb-4">{{ course.description }}</p>
-        <div class="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-          <span class="flex items-center gap-1">
-            <Users class="h-4 w-4" />
-            {{ members.length }} 位学生
-          </span>
-          <Badge variant="secondary">课程码：{{ course.courseCode }}</Badge>
-        </div>
-        <div class="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">教材连接</h2>
-            <Button v-if="!isEditingMaterial" variant="outline" size="sm" @click="startEditMaterial">
-              {{ activeMaterialLinks.length > 0 ? '修改连接' : '新增链接' }}
-            </Button>
-          </div>
-
-          <!-- 顯示模式 -->
-          <div v-if="!isEditingMaterial">
-            <div v-if="activeMaterialLinks.length > 0" class="flex flex-wrap gap-2">
-              <a
-                v-for="link in activeMaterialLinks"
-                :key="link.url"
-                :href="link.url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 hover:border-slate-300 hover:shadow-sm transition-all group"
-              >
-                <ExternalLink class="h-4 w-4 text-slate-400 shrink-0 group-hover:text-blue-500 transition-colors" />
-                <div>
-                  <p class="text-sm font-medium text-slate-900 leading-tight">{{ link.title || link.url }}</p>
-                  <p class="text-xs text-slate-400 leading-tight mt-0.5">教材连接</p>
-                </div>
-              </a>
-            </div>
-            <p v-else class="text-sm text-slate-500">尚未设定教材连接</p>
-          </div>
-
-          <!-- 編輯模式 -->
-          <div v-else class="space-y-2">
-            <div v-for="(link, i) in materialLinksInput" :key="i" class="flex gap-2">
-              <div class="w-2/5">
-                <Input v-model="link.title" placeholder="标题（选填）" />
-              </div>
-              <div class="flex-1">
-                <Input v-model="link.url" type="url" placeholder="https://..." />
-              </div>
-            </div>
-            <p v-if="saveMaterialError" class="text-sm text-red-600">{{ saveMaterialError }}</p>
-            <div class="flex justify-end gap-2 pt-1">
-              <Button variant="outline" :disabled="isSavingMaterial" @click="isEditingMaterial = false">取消</Button>
-              <Button :disabled="isSavingMaterial" @click="handleSaveMaterialLinks">
-                <Loader2 v-if="isSavingMaterial" class="mr-2 h-4 w-4 animate-spin" />
-                保存
-              </Button>
-            </div>
-          </div>
-        </div>
+        <Button @click="isCreateDialogOpen = true">
+          <Plus class="h-4 w-4 mr-2" />
+          建立新课程
+        </Button>
       </div>
 
-      <!-- Students List -->
-      <Card class="mb-8">
-        <CardContent class="!p-6">
-          <h2 class="text-base font-semibold text-slate-900 mb-4">学生名单</h2>
-             <!-- 新增：添加学生按钮 -->
-          <Button @click="openAddStudentModal">
-          + 添加学生
-          </Button>
-          <div v-if="members.length === 0" class="text-center py-4 text-slate-500 text-sm">
-            尚未有学生加入此课程
-          </div>
-          <div v-else class="flex flex-wrap gap-2">
-            <Badge
-              v-for="member in members"
-              :key="member.id"
-              variant="outline"
-            >
-              {{ getStudentName(member.studentId) }}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      <!-- Assignments -->
-      <div class="space-y-4">
-        <div class="flex items-center justify-between mb-2">
-          <h2 class="text-xl font-semibold text-slate-900">课程作业</h2>
-          <Button @click="isCreateDialogOpen = true">
-            <Plus class="h-4 w-4 mr-2" />
-            新增作业
-          </Button>
+      <!-- My Courses -->
+      <div>
+        <h2 class="text-xl font-semibold mb-4">我的课程</h2>
+        <div v-if="myCourses.length === 0" class="text-center py-12 text-slate-500">
+          <BookOpen class="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>您还没有建立任何课程</p>
+          <p class="text-sm">点击上方按钮建立您的第一门课程！</p>
         </div>
-
-        <div v-if="assignments.length === 0" class="text-center py-16 text-slate-500">
-          <BookOpen class="h-10 w-10 mx-auto mb-3 text-slate-300" />
-          <p class="font-medium">此课程暂无作业</p>
-          <p class="text-sm mt-1">点击上方按钮新增作业</p>
-        </div>
-
-        <div v-else class="space-y-3">
+        <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card
-            v-for="assignment in assignments"
-            :key="assignment.id"
-            class="hover:shadow-md transition-shadow duration-200"
+            v-for="course in myCourses"
+            :key="course.id"
+            class="cursor-pointer hover:shadow-md transition-shadow"
+            @click="router.push(`/teacher/course/${course.id}`)"
           >
-            <CardContent class="!p-5 lg:!p-6">
-              <!-- Title row -->
-              <div class="flex flex-wrap items-center gap-2 mb-3">
-                <h3 class="font-semibold text-slate-900 text-base leading-snug">
-                  {{ assignment.title }}
-                </h3>
-                <Badge v-if="assignment.submitType !== 'complete'" variant="outline" class="shrink-0">
-                  <component
-                    :is="getSubmitTypeInfo(assignment.submitType)?.icon"
-                    class="h-3 w-3 mr-1"
-                  />
-                  {{ getSubmitTypeInfo(assignment.submitType)?.label }}
-                </Badge>
-              </div>
-
-              <!-- Description preview -->
-              <p
-                v-if="assignment.description"
-                class="text-sm text-slate-600 leading-relaxed whitespace-pre-line mb-4"
-              >{{ stripMarkdown(assignment.description) }}</p>
-
-              <!-- Dates -->
-              <div class="flex flex-wrap items-center gap-4 text-xs text-slate-500 mb-4">
+            <CardHeader>
+              <CardTitle class="text-lg">{{ course.name }}</CardTitle>
+              <CardDescription class="line-clamp-2">{{ course.description }}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="flex items-center gap-4 text-sm text-slate-600">
                 <span class="flex items-center gap-1">
-                  <CalendarDays class="h-3.5 w-3.5" />
-                  發布：{{ formatDate(assignment.releaseDate) }}
+                  <Users class="h-4 w-4" />
+                  {{ getStudentCount(course.id) }} 位学生
                 </span>
-                <span v-if="assignment.dueDate" class="flex items-center gap-1">
-                  <Clock class="h-3.5 w-3.5" />
-                  截止：{{ formatDate(assignment.dueDate) }}
+                <span class="flex items-center gap-1">
+                  <BookOpen class="h-4 w-4" />
+                  {{ getAssignmentCount(course.id) }} 个作业
                 </span>
               </div>
-
-              <!-- Actions -->
-              <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
-                <router-link :to="`/teacher/discussion/${assignment.id}`">
-                  <Button variant="ghost" size="sm" class="cursor-pointer">
-                    <MessageSquare class="h-4 w-4 mr-1.5" />
-                    讨论区
-                    <span v-if="discussionCountMap[assignment.id]" class="ml-1.5 bg-slate-100 text-slate-600 text-xs rounded-full px-1.5 py-0.5 font-medium leading-none">
-                      {{ discussionCountMap[assignment.id] }}
-                    </span>
-                  </Button>
-                </router-link>
-                <router-link :to="`/teacher/submissions/${assignment.id}`">
-                  <Button variant="outline" size="sm" class="cursor-pointer">
-                    <Eye class="h-4 w-4 mr-1.5" />
-                    查看提交
-                  </Button>
-                </router-link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="cursor-pointer"
-                  @click="openPreviewDialog(assignment)"
-                >
-                  <BookOpen class="h-4 w-4 mr-1.5" />
-                  预览
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="cursor-pointer"
-                  @click="openEditDialog(assignment)"
-                >
-                  <Pencil class="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="text-red-600 hover:text-red-700 hover:bg-red-50 cursor-pointer"
-                  @click="handleDeleteAssignment(assignment.id)"
-                >
-                  <Trash2 class="h-4 w-4" />
-                </Button>
+              <div class="mt-4">
+                <Badge variant="secondary">课程码：{{ course.courseCode }}</Badge>
               </div>
             </CardContent>
           </Card>
@@ -557,90 +342,40 @@ function handleLogout() {
       </div>
     </main>
 
-    <!-- Create Assignment Dialog -->
-    <Dialog v-model:open="isCreateDialogOpen" class="max-w-5xl max-h-[90vh] overflow-y-auto">
+    <!-- Create Course Dialog -->
+    <Dialog v-model:open="isCreateDialogOpen">
       <div class="space-y-4">
         <DialogHeader>
-          <DialogTitle>新增作业</DialogTitle>
+          <DialogTitle>建立新课程</DialogTitle>
         </DialogHeader>
         <div class="space-y-4">
           <div class="space-y-2">
-            <Label for="title">作业标题</Label>
+            <Label for="courseName">课程名称</Label>
             <Input
-              id="title"
-              v-model="newAssignment.title"
-              placeholder="輸入作業標題"
+              id="courseName"
+              v-model="newCourse.name"
+              placeholder="输入课程名称"
             />
           </div>
           <div class="space-y-2">
-            <Label>作业描述</Label>
-            <MarkdownEditor
-              v-model="newAssignment.description"
-              placeholder="支援 Markdown 格式，例如 **粗體**、`程式碼`、清單等"
-              minHeight="320px"
+            <Label for="courseDescription">课程描述</Label>
+            <Textarea
+              id="courseDescription"
+              v-model="newCourse.description"
+              placeholder="输入课程描述"
+              :rows="3"
             />
           </div>
-          <div class="space-y-2">
-            <Label>提交方式</Label>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                v-for="type in submitTypes"
-                :key="type.value"
-                type="button"
-                :class="[
-                  'flex items-center gap-2 p-3 rounded-lg border transition-colors cursor-pointer',
-                  newAssignment.submitType === type.value
-                    ? 'border-slate-900 bg-slate-50'
-                    : 'border-slate-200 hover:bg-slate-50'
-                ]"
-                @click="newAssignment.submitType = type.value"
-              >
-                <component :is="type.icon" class="h-4 w-4" />
-                <span class="text-sm">{{ type.label }}</span>
-              </button>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="space-y-2">
-              <Label for="releaseDate">发布时间</Label>
-              <Input
-                id="releaseDate"
-                v-model="newAssignment.releaseDate"
-                type="datetime-local"
-              />
-            </div>
-            <div class="space-y-2">
-              <Label for="dueDate">截止时间（选填）</Label>
-              <Input
-                id="dueDate"
-                v-model="newAssignment.dueDate"
-                type="datetime-local"
-              />
-            </div>
-          </div>
-          <div class="space-y-2">
-            <Label class="flex items-center gap-2">
-              <input
-                v-model="newAssignment.showcaseEnabled"
-                type="checkbox"
-                class="w-4 h-4"
-              />
-              启用作业展示
-            </Label>
-            <Label v-if="newAssignment.showcaseEnabled" class="flex items-center gap-2 ml-6">
-              <input
-                v-model="newAssignment.showcaseRequireApproval"
-                type="checkbox"
-                class="w-4 h-4"
-              />
-              需要老师审核
-            </Label>
+          <div v-if="createCourseError" class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {{ createCourseError }}
           </div>
           <div class="flex justify-end gap-2">
-            <Button variant="outline" @click="isCreateDialogOpen = false">取消</Button>
+            <Button variant="outline" @click="isCreateDialogOpen = false">
+              取消
+            </Button>
             <Button
-              :disabled="!newAssignment.title.trim() || isCreating"
-              @click="handleCreateAssignment"
+              :disabled="!newCourse.name.trim() || isCreating"
+              @click="handleCreateCourse"
             >
               <Loader2 v-if="isCreating" class="mr-2 h-4 w-4 animate-spin" />
               {{ isCreating ? '建立中...' : '建立' }}
@@ -650,113 +385,81 @@ function handleLogout() {
       </div>
     </Dialog>
 
-    <!-- Preview Assignment Dialog（學生視角）-->
-    <Dialog v-model:open="isPreviewDialogOpen" class="max-w-3xl max-h-[85vh] overflow-y-auto">
-      <div class="space-y-4">
-        <DialogHeader>
-          <DialogTitle>{{ previewAssignment?.title }}</DialogTitle>
-          <p class="text-sm text-slate-500 mt-1">这是学生会看到的作业内容</p>
-        </DialogHeader>
-        <div v-if="previewAssignment?.description" class="assignment-document">
-          <MarkdownRenderer :content="previewAssignment.description" />
-        </div>
-        <div v-else class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
-          这份作业尚未提供详细内容。
-        </div>
-      </div>
-    </Dialog>
+    <!-- API Key Management Dialog -->
+    <Dialog v-model:open="isApiKeyDialogOpen">
+      <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 mx-4">
+          <DialogHeader>
+            <DialogTitle>API Keys 管理</DialogTitle>
+          </DialogHeader>
 
-    <!-- Edit Assignment Dialog -->
-    <Dialog v-model:open="isEditDialogOpen" class="max-w-5xl max-h-[90vh] overflow-y-auto">
-      <div class="space-y-4">
-        <DialogHeader>
-          <DialogTitle>编辑作业</DialogTitle>
-        </DialogHeader>
-        <div class="space-y-4">
-          <div class="space-y-2">
-            <Label for="edit-title">作业标题</Label>
-            <Input
-              id="edit-title"
-              v-model="editForm.title"
-              placeholder="输入作业标题"
-            />
-          </div>
-          <div class="space-y-2">
-            <Label>作業描述</Label>
-            <MarkdownEditor
-              v-model="editForm.description"
-              placeholder="支援 Markdown 格式，例如 **粗体**、`程式碼`、清单等"
-              minHeight="320px"
-            />
-          </div>
-          <div class="space-y-2">
-            <Label>提交方式</Label>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                v-for="type in submitTypes"
-                :key="type.value"
-                type="button"
-                :class="[
-                  'flex items-center gap-2 p-3 rounded-lg border transition-colors cursor-pointer',
-                  editForm.submitType === type.value
-                    ? 'border-slate-900 bg-slate-50'
-                    : 'border-slate-200 hover:bg-slate-50'
-                ]"
-                @click="editForm.submitType = type.value"
-              >
-                <component :is="type.icon" class="h-4 w-4" />
-                <span class="text-sm">{{ type.label }}</span>
-              </button>
+          <div class="mt-4">
+            <Label>生成新 Key</Label>
+            <div class="flex gap-2 mt-1">
+              <Input v-model="newKeyLabel" placeholder="装置名称，例如：我的 MacBook" class="flex-1" />
+              <Button :disabled="isGeneratingKey || !newKeyLabel.trim()" @click="generateApiKey">
+                <Loader2 v-if="isGeneratingKey" class="w-4 h-4 animate-spin mr-1" />
+                生成
+              </Button>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="space-y-2">
-              <Label for="edit-releaseDate">发布时间</Label>
-              <Input
-                id="edit-releaseDate"
-                v-model="editForm.releaseDate"
-                type="datetime-local"
-              />
-            </div>
-            <div class="space-y-2">
-              <Label for="edit-dueDate">截止时间（选填）</Label>
-              <Input
-                id="edit-dueDate"
-                v-model="editForm.dueDate"
-                type="datetime-local"
-              />
+
+          <div v-if="generatedKey" class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+            <p class="text-sm font-medium text-yellow-800">请立即复制，之后无法再看到</p>
+            <div class="flex gap-2 mt-2">
+              <code class="flex-1 text-xs bg-white p-2 rounded border break-all">{{ generatedKey }}</code>
+              <Button size="sm" variant="outline" @click="copyKey">
+                {{ isCopied ? '已复制' : '复制' }}
+              </Button>
             </div>
           </div>
-          <div class="space-y-2">
-            <Label class="flex items-center gap-2">
-              <input
-                v-model="editForm.showcaseEnabled"
-                type="checkbox"
-                class="w-4 h-4"
-              />
-              启用作业展示
-            </Label>
-            <Label v-if="editForm.showcaseEnabled" class="flex items-center gap-2 ml-6">
-              <input
-                v-model="editForm.showcaseRequireApproval"
-                type="checkbox"
-                class="w-4 h-4"
-              />
-              需要老师审核
-            </Label>
+
+          <div class="mt-4">
+            <p class="text-sm font-medium text-gray-700">已產生的 Keys</p>
+            <div v-if="apiKeys.length === 0" class="text-sm text-gray-400 mt-2">尚無 API Key</div>
+            <div v-for="key in apiKeys" :key="key.id"
+                 class="flex items-center justify-between py-2 border-b last:border-0">
+              <div>
+                <p class="text-sm font-medium">{{ key.label }}</p>
+                <p class="text-xs text-gray-400">
+                  建立：{{ new Date(key.created_at).toLocaleDateString('zh-TW') }}
+                  <span v-if="key.last_used_at">
+                    · 最后使用：{{ new Date(key.last_used_at).toLocaleDateString('zh-TW') }}
+                  </span>
+                </p>
+              </div>
+              <Button size="sm" variant="outline" class="text-red-600 border-red-200 hover:bg-red-50"
+                      @click="revokeApiKey(key.id)">
+                删除
+              </Button>
+            </div>
           </div>
-          <div class="flex justify-end gap-2">
-            <Button variant="outline" @click="isEditDialogOpen = false">取消</Button>
-            <Button
-              :disabled="!editForm.title.trim() || isEditing"
-              @click="handleEditAssignment"
-            >
-              <Loader2 v-if="isEditing" class="mr-2 h-4 w-4 animate-spin" />
-              {{ isEditing ? '储存中...' : '储存变更' }}
-            </Button>
+
+          <div class="mt-4 flex justify-end">
+            <Button variant="outline" @click="isApiKeyDialogOpen = false">关闭</Button>
           </div>
         </div>
       </div>
     </Dialog>
   </div>
+  <!-- 添加学生弹窗 -->
+<Dialog v-model:open="showAddStudentModal">
+  <DialogHeader>
+    <DialogTitle>添加学生到课程</DialogTitle>
+  </DialogHeader>
+  <div class="space-y-4 py-2">
+    <Input 
+      v-model="searchKeyword" 
+      placeholder="输入学生名字搜索..." 
+      @input="searchStudents"
+    />
+    <div class="space-y-2 max-h-64 overflow-y-auto">
+      <div v-for="stu in searchStudentList" :key="stu.id" class="flex justify-between items-center border p-2 rounded">
+        <span>{{ stu.name }}</span>
+        <Button @click="addStudentToCourse(stu.id)">加入课程</Button>
+      </div>
+      <p v-if="searchStudentList.length === 0 && searchKeyword" class="text-sm text-slate-500">找不到学生</p>
+    </div>
+  </div>
+</Dialog>
 </template>
