@@ -52,13 +52,15 @@ const submitTypeIcons: Record<SubmitType, any> = {
   file: FileText,
   link: LinkIcon,
   image: ImageIcon,
+  game: BookOpen,
 }
 
 const submitTypeLabels: Record<SubmitType, string> = {
-  complete: '點擊完成',
-  file: '檔案上傳',
-  link: '連結提交',
-  image: '圖片上傳',
+  complete: '点击完成',
+  file: '档案上传',
+  link: '连接提交',
+  image: '图片上传',
+  game: '闯关游戏',
 }
 
 onMounted(async () => {
@@ -98,7 +100,7 @@ async function loadData() {
     )
   } catch (e) {
     console.error('Failed to load course detail:', e)
-    loadError.value = e instanceof Error ? e.message : '載入課程資料失敗'
+    loadError.value = e instanceof Error ? e.message : '载入课程资料失败'
   } finally {
     isReloading.value = false
   }
@@ -106,15 +108,15 @@ async function loadData() {
 
 function getAssignmentStatusBadge(assignment: AssignmentWithStatus) {
   if (!assignment.isUnlocked) {
-    return { variant: 'secondary' as const, text: '未解鎖' }
+    return { variant: 'secondary' as const, text: '未解锁' }
   }
   if (assignment.submission?.status === 'completed') {
     return { variant: 'success' as const, text: '已完成' }
   }
   if (assignment.dueDate && new Date(assignment.dueDate) < new Date()) {
-    return { variant: 'destructive' as const, text: '已逾期' }
+    return { variant: 'destructive' as const, text: '已过期' }
   }
-  return { variant: 'default' as const, text: '進行中' }
+  return { variant: 'default' as const, text: '进行中' }
 }
 
 function stripMarkdown(text: string, maxLines = 5): string {
@@ -206,18 +208,18 @@ function handleLogout() {
             <ExternalLink class="h-4 w-4 text-slate-400 shrink-0 group-hover:text-blue-500 transition-colors" />
             <div>
               <p class="text-sm font-medium text-slate-900 leading-tight">{{ link.title || link.url }}</p>
-              <p class="text-xs text-slate-400 leading-tight mt-0.5">教材連結</p>
+              <p class="text-xs text-slate-400 leading-tight mt-0.5">教材连接</p>
             </div>
           </a>
         </div>
       </div>
 
       <div class="space-y-4">
-        <h2 class="text-xl font-semibold text-slate-900 mb-2">課程作業</h2>
+        <h2 class="text-xl font-semibold text-slate-900 mb-2">课程作业</h2>
 
         <div v-if="assignments.length === 0" class="text-center py-16 text-slate-500">
           <BookOpen class="h-10 w-10 mx-auto mb-3 text-slate-300" />
-          <p class="font-medium">此課程暫無作業</p>
+          <p class="font-medium">此课程暂无作业</p>
         </div>
 
         <div v-else class="space-y-3">
@@ -256,7 +258,7 @@ function handleLogout() {
                     class="text-sm text-slate-600 leading-relaxed whitespace-pre-line"
                   >{{ stripMarkdown(assignment.description) }}</p>
                   <p v-else-if="!assignment.isUnlocked" class="text-sm text-slate-400">
-                    完成前一個作業後解鎖
+                    完成前一個作业解锁
                   </p>
                 </div>
 
@@ -277,7 +279,7 @@ function handleLogout() {
                   </span>
                   <span class="flex items-center gap-1">
                     <CalendarDays class="h-3.5 w-3.5" />
-                    發布：{{ formatDate(assignment.releaseDate) }}
+                    发布：{{ formatDate(assignment.releaseDate) }}
                   </span>
                   <span v-if="assignment.dueDate" class="flex items-center gap-1">
                     <Clock class="h-3.5 w-3.5" />
@@ -289,7 +291,7 @@ function handleLogout() {
                 <router-link :to="`/discussion/${assignment.id}`" @click.stop>
                   <Button variant="ghost" size="sm" class="cursor-pointer">
                     <MessageCircle class="h-4 w-4 mr-1.5" />
-                    討論區
+                    讨论区
                     <span v-if="discussionCountMap[assignment.id]" class="ml-1.5 bg-slate-100 text-slate-600 text-xs rounded-full px-1.5 py-0.5 font-medium leading-none">
                       {{ discussionCountMap[assignment.id] }}
                     </span>
