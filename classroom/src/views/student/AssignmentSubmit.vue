@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer.vue'
 import { LoadErrorBanner } from '@/components/ui/LoadErrorBanner'
+import { BookOpen } from 'lucide-vue-next'
 import {
   ArrowLeft,
   CheckCircle2,
@@ -48,7 +49,7 @@ const isCompleted = computed(() => submission.value?.status === 'completed')
 const submitActionLabel = computed(() => {
   if (isCompleted.value) return '已完成'
   if (isSubmitting.value) return '提交中...'
-  return assignment.value?.submitType === 'complete' ? '標記為完成' : '提交作業'
+  return assignment.value?.submitType === 'complete' ? '标记为完成' : '提交作业'
 })
 
 const submitTypeIcons: Record<SubmitType, any> = {
@@ -56,20 +57,23 @@ const submitTypeIcons: Record<SubmitType, any> = {
   file: FileText,
   link: LinkIcon,
   image: ImageIcon,
+  game: BookOpen, // 新增这一行，game 使用 BookOpen 图标
 }
 
 const submitTypeLabels: Record<SubmitType, string> = {
-  complete: '點擊完成',
-  file: '檔案上傳',
-  link: '連結提交',
-  image: '圖片上傳',
+  complete: '点击完成',
+  file: '档案上传',
+  link: '连接提交',
+  image: '图片上传',
+  game: '闯关游戏', // 新增這一行，显示文字
 }
 
 const submitInputPlaceholders: Record<SubmitType, string> = {
   complete: '',
-  file: '請輸入檔案描述或連結',
-  link: '請輸入作業連結',
-  image: '請輸入圖片連結',
+  file: '请输入档案描述或链接',
+  link: '请输入作业连接',
+  image: '请输入图片链接',
+  game: '闯关作答，无需在此输入', // 新增這一行
 }
 
 onMounted(async () => {
@@ -105,7 +109,7 @@ async function loadData() {
     }
   } catch (e) {
     console.error('Failed to load assignment submit:', e)
-    loadError.value = e instanceof Error ? e.message : '載入作業資料失敗'
+    loadError.value = e instanceof Error ? e.message : '输入作业资料失败'
   } finally {
     isReloading.value = false
   }
@@ -126,7 +130,7 @@ async function handleSubmit() {
     const isCompleted = assignment.value.submitType === 'complete' ? true : submitData.value.trim() !== ''
 
     if (!isCompleted) {
-      message.value = '請輸入提交內容'
+      message.value = '请输入提交内容'
       return
     }
 
@@ -148,12 +152,12 @@ async function handleSubmit() {
       }
     }
 
-    message.value = '作業提交成功！'
+    message.value = '作业完成提交！'
     setTimeout(() => {
       router.push(`/course/${assignment.value!.courseId}`)
     }, 1500)
   } catch (e) {
-    message.value = '提交時發生錯誤，請重試'
+    message.value = '提交时间发生错误，请重试'
   } finally {
     isSubmitting.value = false
   }
@@ -172,7 +176,7 @@ async function handleSubmit() {
       <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Button variant="ghost" size="sm" class="-ml-2 text-slate-600 hover:text-slate-950" @click="router.push(`/course/${course.id}`)">
           <ArrowLeft class="h-4 w-4 mr-2" />
-          返回課程
+          返回课程
         </Button>
         <span class="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 sm:inline-flex">
           {{ course.name }}
@@ -203,7 +207,7 @@ async function handleSubmit() {
             <div class="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
               <span class="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/10">
                 <CalendarDays class="h-4 w-4 text-sky-200" />
-                發布 {{ formatDate(assignment.releaseDate) }}
+                发布 {{ formatDate(assignment.releaseDate) }}
               </span>
               <span v-if="assignment.dueDate" class="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/10">
                 <Clock class="h-4 w-4 text-amber-200" />
@@ -217,7 +221,7 @@ async function handleSubmit() {
               <MarkdownRenderer :content="assignment.description" />
             </div>
             <div v-else class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
-              這份作業尚未提供詳細內容。
+              这份作业尚未提供详细内容。
             </div>
           </article>
         </div>
@@ -227,7 +231,7 @@ async function handleSubmit() {
         <div class="rounded-[1.75rem] border border-white/80 bg-white p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 sm:p-6">
           <div class="mb-5 flex items-start justify-between gap-4">
             <div>
-              <p class="text-sm font-medium text-slate-500">繳交狀態</p>
+              <p class="text-sm font-medium text-slate-500">缴交状态</p>
               <h2 class="mt-1 text-xl font-bold text-slate-950">
                 {{ isCompleted ? '已完成' : '等待提交' }}
               </h2>
@@ -246,10 +250,10 @@ async function handleSubmit() {
           <div v-if="isCompleted" class="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
             <div class="flex items-center gap-2 font-medium">
               <CheckCircle2 class="h-5 w-5" />
-              作業已完成
+              作业已完成
             </div>
             <p v-if="submission?.submittedAt" class="mt-1 text-sm text-emerald-700">
-              提交時間：{{ new Date(submission.submittedAt).toLocaleString('zh-TW') }}
+              提交时间：{{ new Date(submission.submittedAt).toLocaleString('zh-TW') }}
             </p>
             <p v-if="submission?.submitData" class="mt-2 text-sm text-emerald-800 border-t border-emerald-200 pt-2 whitespace-pre-wrap">
               {{ submission.submitData }}
@@ -260,7 +264,7 @@ async function handleSubmit() {
           <div class="mb-5 space-y-2">
             <label class="text-sm font-medium text-slate-700">
               <template v-if="assignment.submitType === 'complete'">
-                作答內容 <span class="font-normal text-slate-400">（選填）</span>
+                作答內容 <span class="font-normal text-slate-400">（选填）</span>
               </template>
               <template v-else>提交內容</template>
             </label>
@@ -303,7 +307,7 @@ async function handleSubmit() {
           </Button>
 
           <p class="mt-4 text-center text-xs leading-relaxed text-slate-500">
-            完成後系統會自動更新你的課程進度，並解鎖下一個作業。
+            完成后系统会自动更新你的课程进度，并解锁下一个作业。
           </p>
         </div>
       </aside>
