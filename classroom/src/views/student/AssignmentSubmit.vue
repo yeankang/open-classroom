@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer.vue'
 import { LoadErrorBanner } from '@/components/ui/LoadErrorBanner'
-import { BookOpen } from 'lucide-vue-next'
 import {
   ArrowLeft,
   CheckCircle2,
