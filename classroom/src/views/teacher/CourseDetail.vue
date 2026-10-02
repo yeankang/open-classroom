@@ -14,7 +14,6 @@ import {
   Dialog,
   DialogHeader,
   DialogTitle,
-  DialogContent,
 } from '@/components/ui/Dialog'
 import {
   ArrowLeft,
@@ -810,7 +809,6 @@ const addStudentToCourse = async (studentId: string) => {
   </div>
   <!-- 添加学生弹窗 -->
 <Dialog v-model:open="showAddStudentModal">
-  <DialogContent>
   <DialogHeader>
     <DialogTitle>添加学生到课程</DialogTitle>
   </DialogHeader>
@@ -828,6 +826,5 @@ const addStudentToCourse = async (studentId: string) => {
       <p v-if="searchStudentList.length === 0 && searchKeyword" class="text-sm text-slate-500">找不到学生</p>
     </div>
   </div>
-    </DialogContent>
 </Dialog>
 </template>
