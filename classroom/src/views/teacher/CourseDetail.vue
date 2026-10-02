@@ -261,6 +261,7 @@ async function handleEditAssignment() {
       showcaseRequireApproval: editForm.value.showcaseRequireApproval,
     })
     // 删除旧关卡，再写入新关卡
+    if (!editingAssignment.value) return
     await supabase.from('assignment_questions').delete().eq('assignment_id', editingAssignment.value.id)
     if(editLevelList.value.length>0){
       const insertData = editLevelList.value.map((item, idx)=>({
@@ -460,7 +461,18 @@ const addStudentToCourse = async (studentId: string) => {
   showAddStudentModal.value = false
   await loadData() // 刷新学生名单
 }
-  
+
+function createNewLevel() {
+  return {
+    id: crypto.randomUUID(),
+    questionType: 'single',
+    title: `關卡 ${editlevelList.value.length + 1}`,
+    description: '',
+    options: [{ label: '', isAnswer: false }, { label: '', isAnswer: false }],
+    blankAnswer: '',
+    sortItems: []
+  }
+}
 </script>
 
 <template>
@@ -761,7 +773,7 @@ const addStudentToCourse = async (studentId: string) => {
     <!-- 排序题 -->
     <div v-if="level.questionType === 'sort'" class="space-y-2">
       <Label>正确顺序（从上到下为正确顺序）</Label>
-      <div v-for="(item, sortIdx) in level.sortItems" :key="sortIdx" class="flex gap-2 items-center">
+      <div v-for="(_item, sortIdx) in level.sortItems" :key="sortIdx" class="flex gap-2 items-center">
         <span>{{sortIdx+1}}.</span>
         <Input v-model="level.sortItems[sortIdx]" placeholder="项目内容" />
         <Button size="sm" variant="ghost" @click="level.sortItems.splice(sortIdx,1)">-</Button>
@@ -863,15 +875,7 @@ const addStudentToCourse = async (studentId: string) => {
 <div class="space-y-4 border-t pt-4">
   <div class="flex justify-between items-center">
     <Label>🎮 关卡题目管理</Label>
-    <Button variant="outline" size="sm" @click="editLevelList.push({
-      id: crypto.randomUUID(),
-      questionType: 'single',
-      title: `关卡 ${editLevelList.length + 1}`,
-      description: '',
-      options: [{ label: '', isAnswer: false }, { label: '', isAnswer: false }],
-      blankAnswer: '',
-      sortItems: []
-    })">+ 添加一关</Button>
+<Button variant="outline" size="sm" @click="editlevelList.push(createNewLevel())"> 添加一关</Button>
   </div>
 
   <div v-if="editLevelList.length === 0" class="text-sm text-slate-500 border rounded p-4 text-center">
@@ -921,7 +925,7 @@ const addStudentToCourse = async (studentId: string) => {
 
     <div v-if="level.questionType === 'sort'" class="space-y-2">
       <Label>正确顺序（从上到下为正确顺序）</Label>
-      <div v-for="(item, sortIdx) in level.sortItems" :key="sortIdx" class="flex gap-2 items-center">
+      <div v-for="(_item, sortIdx) in level.sortItems" :key="sortIdx" class="flex gap-2 items-center">
         <span>{{sortIdx+1}}.</span>
         <Input v-model="level.sortItems[sortIdx]" placeholder="项目内容" />
         <Button size="sm" variant="ghost" @click="level.sortItems.splice(sortIdx,1)">-</Button>
