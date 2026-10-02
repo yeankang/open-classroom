@@ -38,7 +38,7 @@ export interface CourseMember {
 }
 
 // 作業提交類型
-export type SubmitType = 'complete' | 'file' | 'link' | 'image'
+export type SubmitType = 'complete' | 'file' | 'link' | 'image'| 'game'
 
 // 作業類型
 export interface Assignment {
