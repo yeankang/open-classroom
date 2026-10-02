@@ -83,7 +83,7 @@ const isEditing = ref(false)
 const editForm = ref({
   title: '',
   description: '',
-  submitType: 'complete' as SubmitType,
+  submitType: 'game' as SubmitType,
   releaseDate: '',
   dueDate: '',
   showcaseEnabled: true,
@@ -93,7 +93,7 @@ const editForm = ref({
 const newAssignment = ref({
   title: '',
   description: '',
-  submitType: 'complete' as SubmitType,
+  submitType: 'game' as SubmitType,
   releaseDate: '',
   dueDate: '',
   showcaseEnabled: true,
@@ -102,13 +102,190 @@ const newAssignment = ref({
 
 const courseId = computed(() => route.params.id as string)
 
-const submitTypes: { value: SubmitType; label: string; icon: any }[] = [
-  { value: 'complete', label: '点击完成', icon: MousePointerClick },
-  { value: 'file', label: '档案上传', icon: FileText },
-  { value: 'link', label: '连接提交', icon: LinkIcon },
-  { value: 'image', label: '图片上传', icon: ImageIcon },
-]
+// ========== 闯关作业 - 关卡编辑器【移到这里！！在所有函数外面，顶层】 ==========
+type QuestionType = 'single' | 'multiple' | 'blank' | 'sort'
+interface LevelItem {
+  id: string
+  questionType: QuestionType
+  title: string
+  description: string
+  options: Array<{ label: string; isAnswer: boolean }>
+  blankAnswer: string
+  sortItems: string[]
+}
+// 新增作业的关卡列表
+const levelList = ref<LevelItem[]>([])
 
+// 新增空白关卡
+const addNewLevel = () => {
+  levelList.value.push({
+    id: crypto.randomUUID(),
+    questionType: 'single',
+    title: `关卡 ${levelList.value.length + 1}`,
+    description: '',
+    options: [{ label: '', isAnswer: false }, { label: '', isAnswer: false }],
+    blankAnswer: '',
+    sortItems: []
+  })
+}
+
+// 删除关卡
+const removeLevel = (levelId:string) => {
+  levelList.value = levelList.value.filter(l => l.id !== levelId)
+}
+
+// 切换题型，清空无关字段
+const changeQuestionType = (level: LevelItem) => {
+  if(level.questionType === 'single' || level.questionType === 'multiple'){
+    if(level.options.length <2) level.options = [{ label: '', isAnswer: false }, { label: '', isAnswer: false }]
+  }else if(level.questionType === 'blank'){
+    level.options = []
+    level.sortItems = []
+  }else if(level.questionType === 'sort'){
+    level.options = []
+    level.blankAnswer = ''
+  }
+}
+
+// 编辑作业的关卡列表
+const editLevelList = ref<LevelItem[]>([])
+
+// 打开新增作业弹窗的时候清空关卡
+const openCreateDialog = () => {
+  isCreateDialogOpen.value = true
+  levelList.value = []
+}
+
+// 打开编辑作业弹窗时，读取已存在的关卡
+const openEditDialog = async (assignment: Assignment) => {
+  editingAssignment.value = assignment
+  editForm.value = {
+    title: assignment.title,
+    description: assignment.description,
+    submitType: assignment.submitType,
+    releaseDate: toLocalDatetimeInput(assignment.releaseDate),
+    dueDate: assignment.dueDate ? toLocalDatetimeInput(assignment.dueDate) : '',
+    showcaseEnabled: assignment.showcaseEnabled,
+    showcaseRequireApproval: assignment.showcaseRequireApproval,
+  }
+  // 读取这一份作业的所有关卡
+  const { data } = await supabase
+    .from('assignment_questions')
+    .select('*')
+    .eq('assignment_id', assignment.id)
+    .order('order_index', { ascending: true })
+  editLevelList.value = data || []
+  isEditDialogOpen.value = true
+}
+
+// ========== handleCreateAssignment，保存关卡到数据库 ==========
+async function handleCreateAssignment() {
+  if (!newAssignment.value.title.trim() || !course.value) return
+  isCreating.value = true
+  try {
+    const maxOrderIndex = assignments.value.length > 0
+      ? Math.max(...assignments.value.map(a => a.orderIndex))
+      : -1
+
+    const created = await saveAssignment({
+      courseId: course.value.id,
+      title: newAssignment.value.title.trim(),
+      description: newAssignment.value.description.trim(),
+      orderIndex: maxOrderIndex + 1,
+      submitType: 'game', // 全部作业强制为闯关模式
+      releaseDate: newAssignment.value.releaseDate
+        ? new Date(newAssignment.value.releaseDate).toISOString()
+        : new Date().toISOString(),
+      dueDate: newAssignment.value.dueDate
+        ? new Date(newAssignment.value.dueDate).toISOString()
+        : undefined,
+      isActive: true,
+      showcaseEnabled: newAssignment.value.showcaseEnabled,
+      showcaseRequireApproval: newAssignment.value.showcaseRequireApproval,
+    })
+
+    // 批量插入关卡到 assignment_questions
+    if(levelList.value.length > 0){
+      const insertData = levelList.value.map((item, idx) => ({
+        assignment_id: created.id,
+        order_index: idx,
+        question_type: item.questionType,
+        title: item.title,
+        description: item.description,
+        options: item.options,
+        blank_answer: item.blankAnswer,
+        sort_items: item.sortItems
+      }))
+      await supabase.from('assignment_questions').insert(insertData)
+    }
+
+    // Notify enrolled students via email
+    supabase.functions.invoke('send-email', {
+      body: { assignmentId: created.id, type: 'assignment_released' }
+    }).catch(console.error)
+
+    newAssignment.value = {
+      title: '',
+      description: '',
+      submitType: 'game',
+      releaseDate: '',
+      dueDate: '',
+      showcaseEnabled: true,
+      showcaseRequireApproval: true,
+    }
+    isCreateDialogOpen.value = false
+    await loadData()
+  } catch (e) {
+    console.error('Failed to create assignment:', e)
+  } finally {
+    isCreating.value = false
+  }
+}
+
+// ========== handleEditAssignment，更新关卡 ==========
+async function handleEditAssignment() {
+  if (!editForm.value.title.trim() || !editingAssignment.value) return
+  isEditing.value = true
+  try {
+    await updateAssignment(editingAssignment.value.id, {
+      title: editForm.value.title.trim(),
+      description: editForm.value.description.trim(),
+      submitType: 'game',
+      releaseDate: editForm.value.releaseDate
+        ? new Date(editForm.value.releaseDate).toISOString()
+        : editingAssignment.value.releaseDate,
+      dueDate: editForm.value.dueDate
+        ? new Date(editForm.value.dueDate).toISOString()
+        : undefined,
+      showcaseEnabled: editForm.value.showcaseEnabled,
+      showcaseRequireApproval: editForm.value.showcaseRequireApproval,
+    })
+    // 删除旧关卡，再写入新关卡
+    await supabase.from('assignment_questions').delete().eq('assignment_id', editingAssignment.value.id)
+    if(editLevelList.value.length>0){
+      const insertData = editLevelList.value.map((item, idx)=>({
+        assignment_id: editingAssignment.value.id,
+        order_index: idx,
+        question_type: item.questionType,
+        title: item.title,
+        description: item.description,
+        options: item.options,
+        blank_answer: item.blankAnswer,
+        sort_items: item.sortItems
+      }))
+      await supabase.from('assignment_questions').insert(insertData)
+    }
+    isEditDialogOpen.value = false
+    editingAssignment.value = null
+    await loadData()
+  } catch (e) {
+    console.error('Failed to update assignment:', e)
+  } finally {
+    isEditing.value = false
+  }
+}
+
+// ========== 下面是原本旧的函数（保持原样） ==========
 onMounted(async () => {
   await loadData()
 })
@@ -164,10 +341,6 @@ function getStudentName(studentId: string): string {
   return memberNameMap.value[studentId] ?? '未知学生'
 }
 
-function getSubmitTypeInfo(submitType: SubmitType) {
-  return submitTypes.find(t => t.value === submitType)
-}
-
 function stripMarkdown(text: string, maxLines = 5): string {
   return text
     .replace(/#{1,6}\s+/g, '')
@@ -193,101 +366,9 @@ function toLocalDatetimeInput(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-async function handleCreateAssignment() {
-  if (!newAssignment.value.title.trim() || !course.value) return
-
-  isCreating.value = true
-
-  try {
-    const maxOrderIndex = assignments.value.length > 0
-      ? Math.max(...assignments.value.map(a => a.orderIndex))
-      : -1
-
-    const created = await saveAssignment({
-      courseId: course.value.id,
-      title: newAssignment.value.title.trim(),
-      description: newAssignment.value.description.trim(),
-      orderIndex: maxOrderIndex + 1,
-      submitType: newAssignment.value.submitType,
-      releaseDate: newAssignment.value.releaseDate
-        ? new Date(newAssignment.value.releaseDate).toISOString()
-        : new Date().toISOString(),
-      dueDate: newAssignment.value.dueDate
-        ? new Date(newAssignment.value.dueDate).toISOString()
-        : undefined,
-      isActive: true,
-      showcaseEnabled: newAssignment.value.showcaseEnabled,
-      showcaseRequireApproval: newAssignment.value.showcaseRequireApproval,
-    })
-
-    // Notify enrolled students via email
-    supabase.functions.invoke('send-email', {
-      body: { assignmentId: created.id, type: 'assignment_released' }
-    }).catch(console.error) // Non-blocking: don't fail if email fails
-
-    newAssignment.value = {
-      title: '',
-      description: '',
-      submitType: 'complete',
-      releaseDate: '',
-      dueDate: '',
-      showcaseEnabled: true,
-      showcaseRequireApproval: true,
-    }
-    isCreateDialogOpen.value = false
-    await loadData()
-  } catch (e) {
-    console.error('Failed to create assignment:', e)
-  } finally {
-    isCreating.value = false
-  }
-}
-
 function openPreviewDialog(assignment: Assignment) {
   previewAssignment.value = assignment
   isPreviewDialogOpen.value = true
-}
-
-function openEditDialog(assignment: Assignment) {
-  editingAssignment.value = assignment
-  editForm.value = {
-    title: assignment.title,
-    description: assignment.description,
-    submitType: assignment.submitType,
-    releaseDate: toLocalDatetimeInput(assignment.releaseDate),
-    dueDate: assignment.dueDate ? toLocalDatetimeInput(assignment.dueDate) : '',
-    showcaseEnabled: assignment.showcaseEnabled,
-    showcaseRequireApproval: assignment.showcaseRequireApproval,
-  }
-  isEditDialogOpen.value = true
-}
-
-async function handleEditAssignment() {
-  if (!editForm.value.title.trim() || !editingAssignment.value) return
-
-  isEditing.value = true
-  try {
-    await updateAssignment(editingAssignment.value.id, {
-      title: editForm.value.title.trim(),
-      description: editForm.value.description.trim(),
-      submitType: editForm.value.submitType,
-      releaseDate: editForm.value.releaseDate
-        ? new Date(editForm.value.releaseDate).toISOString()
-        : editingAssignment.value.releaseDate,
-      dueDate: editForm.value.dueDate
-        ? new Date(editForm.value.dueDate).toISOString()
-        : undefined,
-      showcaseEnabled: editForm.value.showcaseEnabled,
-      showcaseRequireApproval: editForm.value.showcaseRequireApproval,
-    })
-    isEditDialogOpen.value = false
-    editingAssignment.value = null
-    await loadData()
-  } catch (e) {
-    console.error('Failed to update assignment:', e)
-  } finally {
-    isEditing.value = false
-  }
 }
 
 async function handleDeleteAssignment(assignmentId: string) {
@@ -333,7 +414,7 @@ function handleLogout() {
   router.push('/login')
 }
 
-  // ========== 新增【添加学生】相关变量和函数 ==========
+// ========== 新增【添加学生】相关变量和函数 ==========
 const showAddStudentModal = ref(false)
 const searchStudentList = ref<Array<{id:string,name:string}>>([])
 const searchKeyword = ref('')
@@ -505,7 +586,7 @@ const addStudentToCourse = async (studentId: string) => {
       <div class="space-y-4">
         <div class="flex items-center justify-between mb-2">
           <h2 class="text-xl font-semibold text-slate-900">课程作业</h2>
-          <Button @click="isCreateDialogOpen = true">
+          <Button @click="openCreateDialog">
             <Plus class="h-4 w-4 mr-2" />
           新增作业
           </Button>
@@ -529,13 +610,6 @@ const addStudentToCourse = async (studentId: string) => {
                 <h3 class="font-semibold text-slate-900 text-base leading-snug">
                   {{ assignment.title }}
                 </h3>
-                <Badge v-if="assignment.submitType !== 'complete'" variant="outline" class="shrink-0">
-                  <component
-                    :is="getSubmitTypeInfo(assignment.submitType)?.icon"
-                    class="h-3 w-3 mr-1"
-                  />
-                  {{ getSubmitTypeInfo(assignment.submitType)?.label }}
-                </Badge>
               </div>
 
               <!-- Description preview -->
@@ -628,26 +702,74 @@ const addStudentToCourse = async (studentId: string) => {
               minHeight="320px"
             />
           </div>
-          <div class="space-y-2">
-            <Label>提交方式</Label>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                v-for="type in submitTypes"
-                :key="type.value"
-                type="button"
-                :class="[
-                  'flex items-center gap-2 p-3 rounded-lg border transition-colors cursor-pointer',
-                  newAssignment.submitType === type.value
-                    ? 'border-slate-900 bg-slate-50'
-                    : 'border-slate-200 hover:bg-slate-50'
-                ]"
-                @click="newAssignment.submitType = type.value"
-              >
-                <component :is="type.icon" class="h-4 w-4" />
-                <span class="text-sm">{{ type.label }}</span>
-              </button>
-            </div>
-          </div>
+         <!-- 闯关关卡编辑器 -->
+<div class="space-y-4 border-t pt-4">
+  <div class="flex justify-between items-center">
+    <Label>🎮 关卡题目管理</Label>
+    <Button variant="outline" size="sm" @click="addNewLevel">+ 添加一关</Button>
+  </div>
+
+  <div v-if="levelList.length === 0" class="text-sm text-slate-500 border rounded p-4 text-center">
+    还没有关卡，请点击【添加一关】来创建第一题
+  </div>
+
+  <!-- 循环渲染每一关 -->
+  <div v-for="(level, idx) in levelList" :key="level.id" class="border rounded-lg p-4 space-y-3">
+    <div class="flex justify-between items-center">
+      <span class="font-medium">第 {{ idx +1 }} 关</span>
+      <Button variant="ghost" size="sm" class="text-red-500" @click="removeLevel(level.id)">删除本关</Button>
+    </div>
+
+    <!-- 题型下拉选择 -->
+    <div>
+      <Label>题型</Label>
+      <select v-model="level.questionType" @change="changeQuestionType(level)" class="border rounded px-2 py-1 w-full mt-1">
+        <option value="single">单选题</option>
+        <option value="multiple">多选题</option>
+        <option value="blank">填空题</option>
+        <option value="sort">排序题</option>
+      </select>
+    </div>
+
+    <div>
+      <Label>关卡标题</Label>
+      <Input v-model="level.title" placeholder="例如：认识动物 第1题" />
+    </div>
+
+    <div>
+      <Label>题目描述</Label>
+      <Input v-model="level.description" placeholder="请输入题目内容" />
+    </div>
+
+    <!-- 单选 / 多选题选项 -->
+    <div v-if="level.questionType === 'single' || level.questionType === 'multiple'" class="space-y-2">
+      <Label>选项设置（勾选为正确答案）</Label>
+      <div v-for="(opt, optIdx) in level.options" :key="optIdx" class="flex gap-2 items-center">
+        <input type="checkbox" v-model="opt.isAnswer" />
+        <Input v-model="opt.label" placeholder="选项内容" />
+        <Button size="sm" variant="ghost" @click="level.options.splice(optIdx,1)">-</Button>
+      </div>
+      <Button size="sm" variant="outline" @click="level.options.push({label:'', isAnswer:false})">+新增选项</Button>
+    </div>
+
+    <!-- 填空题 -->
+    <div v-if="level.questionType === 'blank'">
+      <Label>正确答案</Label>
+      <Input v-model="level.blankAnswer" placeholder="填写答案" />
+    </div>
+
+    <!-- 排序题 -->
+    <div v-if="level.questionType === 'sort'" class="space-y-2">
+      <Label>正确顺序（从上到下为正确顺序）</Label>
+      <div v-for="(item, sortIdx) in level.sortItems" :key="sortIdx" class="flex gap-2 items-center">
+        <span>{{sortIdx+1}}.</span>
+        <Input v-model="level.sortItems[sortIdx]" placeholder="项目内容" />
+        <Button size="sm" variant="ghost" @click="level.sortItems.splice(sortIdx,1)">-</Button>
+      </div>
+      <Button size="sm" variant="outline" @click="level.sortItems.push('')">+新增排序项目</Button>
+    </div>
+  </div>
+</div>
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="releaseDate">发布时间</Label>
@@ -737,26 +859,77 @@ const addStudentToCourse = async (studentId: string) => {
               minHeight="320px"
             />
           </div>
-          <div class="space-y-2">
-            <Label>提交方式</Label>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                v-for="type in submitTypes"
-                :key="type.value"
-                type="button"
-                :class="[
-                  'flex items-center gap-2 p-3 rounded-lg border transition-colors cursor-pointer',
-                  editForm.submitType === type.value
-                    ? 'border-slate-900 bg-slate-50'
-                    : 'border-slate-200 hover:bg-slate-50'
-                ]"
-                @click="editForm.submitType = type.value"
-              >
-                <component :is="type.icon" class="h-4 w-4" />
-                <span class="text-sm">{{ type.label }}</span>
-              </button>
-            </div>
-          </div>
+         <!-- 编辑作业 - 闯关关卡编辑器 -->
+<div class="space-y-4 border-t pt-4">
+  <div class="flex justify-between items-center">
+    <Label>🎮 关卡题目管理</Label>
+    <Button variant="outline" size="sm" @click="editLevelList.push({
+      id: crypto.randomUUID(),
+      questionType: 'single',
+      title: `关卡 ${editLevelList.length + 1}`,
+      description: '',
+      options: [{ label: '', isAnswer: false }, { label: '', isAnswer: false }],
+      blankAnswer: '',
+      sortItems: []
+    })">+ 添加一关</Button>
+  </div>
+
+  <div v-if="editLevelList.length === 0" class="text-sm text-slate-500 border rounded p-4 text-center">
+    还没有关卡，请点击【添加一关】来创建第一题
+  </div>
+
+  <div v-for="(level, idx) in editLevelList" :key="level.id" class="border rounded-lg p-4 space-y-3">
+    <div class="flex justify-between items-center">
+      <span class="font-medium">第 {{ idx +1 }} 关</span>
+      <Button variant="ghost" size="sm" class="text-red-500" @click="editLevelList = editLevelList.filter(l=>l.id!==level.id)">删除本关</Button>
+    </div>
+
+    <div>
+      <Label>题型</Label>
+      <select v-model="level.questionType" @change="changeQuestionType(level)" class="border rounded px-2 py-1 w-full mt-1">
+        <option value="single">单选题</option>
+        <option value="multiple">多选题</option>
+        <option value="blank">填空题</option>
+        <option value="sort">排序题</option>
+      </select>
+    </div>
+
+    <div>
+      <Label>关卡标题</Label>
+      <Input v-model="level.title" placeholder="例如：认识动物 第1题" />
+    </div>
+
+    <div>
+      <Label>题目描述</Label>
+      <Input v-model="level.description" placeholder="请输入题目内容" />
+    </div>
+
+    <div v-if="level.questionType === 'single' || level.questionType === 'multiple'" class="space-y-2">
+      <Label>选项设置（勾选为正确答案）</Label>
+      <div v-for="(opt, optIdx) in level.options" :key="optIdx" class="flex gap-2 items-center">
+        <input type="checkbox" v-model="opt.isAnswer" />
+        <Input v-model="opt.label" placeholder="选项内容" />
+        <Button size="sm" variant="ghost" @click="level.options.splice(optIdx,1)">-</Button>
+      </div>
+      <Button size="sm" variant="outline" @click="level.options.push({label:'', isAnswer:false})">+新增选项</Button>
+    </div>
+
+    <div v-if="level.questionType === 'blank'">
+      <Label>正确答案</Label>
+      <Input v-model="level.blankAnswer" placeholder="填写答案" />
+    </div>
+
+    <div v-if="level.questionType === 'sort'" class="space-y-2">
+      <Label>正确顺序（从上到下为正确顺序）</Label>
+      <div v-for="(item, sortIdx) in level.sortItems" :key="sortIdx" class="flex gap-2 items-center">
+        <span>{{sortIdx+1}}.</span>
+        <Input v-model="level.sortItems[sortIdx]" placeholder="项目内容" />
+        <Button size="sm" variant="ghost" @click="level.sortItems.splice(sortIdx,1)">-</Button>
+      </div>
+      <Button size="sm" variant="outline" @click="level.sortItems.push('')">+新增排序项目</Button>
+    </div>
+  </div>
+</div>
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-2">
               <Label for="edit-releaseDate">发布时间</Label>
