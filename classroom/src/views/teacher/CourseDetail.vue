@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/Button'
@@ -14,7 +14,16 @@ import {
   Dialog,
   DialogHeader,
   DialogTitle,
+  DialogContent,
+  DialogFooter,
 } from '@/components/ui/Dialog'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/Select'
 import {
   ArrowLeft,
   BookOpen,
@@ -333,7 +342,7 @@ function handleLogout() {
   router.push('/login')
 }
 
-  // ========== 新增【添加学生】相关变量和函数 ==========
+// ========== 新增【添加学生】相关变量和函数 ==========
 const showAddStudentModal = ref(false)
 const searchStudentList = ref<Array<{id:string,name:string}>>([])
 const searchKeyword = ref('')
@@ -365,7 +374,94 @@ const addStudentToCourse = async (studentId: string) => {
   showAddStudentModal.value = false
   await loadData() // 刷新学生名单
 }
+
+// ========== 新增【闯关出题】变量与函数 ==========
+const showAddQuestionDialog = ref(false)
+const selectedAssignmentId = ref<string | null>(null)
+
+type QuestionType = 'single_choice' | 'fill_in_blank' | 'sort_text' | 'image_choice'
+const questionType = ref<QuestionType>('single_choice')
+
+const form = ref({
+  questionText: '',
+  questionImageUrl: '',
+  point: 10,
+  options: [] as string[],
+  answer: '' as any,
+})
+
+// 打开出题弹窗
+const openAddQuestionModal = (assignmentId: string) => {
+  selectedAssignmentId.value = assignmentId
+  showAddQuestionDialog.value = true
+  resetForm()
+}
+
+// 上传图片
+const uploadImage = async (file: File) => {
+  const fileName = `${Date.now()}-${file.name}`
+  const { data, error } = await supabase.storage
+    .from('question-images')
+    .upload(fileName, file)
+  if (error) throw error
+  const { data: urlData } = supabase.storage
+    .from('question-images')
+    .getPublicUrl(fileName)
+  form.value.questionImageUrl = urlData.publicUrl
+}
+
+// 保存闯关题目
+const saveQuestion = async () => {
+  if (!selectedAssignmentId.value) return alert('请先选择作业')
+
+  // 获取当前最大order_index
+  const { data: existQuestions } = await supabase
+    .from('assignment_questions')
+    .select('order_index')
+    .eq('assignment_id', selectedAssignmentId.value)
+    .order('order_index', { ascending: false })
+    .limit(1)
   
+  const nextOrder = existQuestions?.length ? existQuestions[0].order_index + 1 : 1
+
+  const payload = {
+    assignment_id: selectedAssignmentId.value,
+    order_index: nextOrder,
+    question: form.value.questionText,
+    question_image: form.value.questionImageUrl,
+    question_type: questionType.value,
+    options: form.value.options,
+    answer: form.value.answer,
+    point: form.value.point,
+  }
+
+  const { error } = await supabase.from('assignment_questions').insert(payload)
+  if (error) {
+    alert('保存失败：' + error.message)
+    return
+  }
+  alert('题目保存成功！')
+  showAddQuestionDialog.value = false
+  resetForm()
+}
+
+// 重置表单
+const resetForm = () => {
+  form.value = {
+    questionText: '',
+    questionImageUrl: '',
+    point: 10,
+    options: [],
+    answer: '',
+  }
+  questionType.value = 'single_choice'
+}
+
+// 切换题型清空选项答案
+watch(questionType, () => {
+  form.value.options = []
+  form.value.answer = ''
+})
 </script>
 
 <template>
@@ -469,9 +565,9 @@ const addStudentToCourse = async (studentId: string) => {
         <CardContent class="!p-6">
           <h2 class="text-base font-semibold text-slate-900 mb-4">学生名单</h2>
           <!-- 新增：添加学生按钮 -->
-      <Button @click="openAddStudentModal">
-        + 添加学生
-      </Button>
+          <Button @click="openAddStudentModal">
+            + 添加学生
+          </Button>
           <div v-if="members.length === 0" class="text-center py-4 text-slate-500 text-sm">
             尚未学生加入此课程
           </div>
@@ -544,6 +640,10 @@ const addStudentToCourse = async (studentId: string) => {
 
               <!-- Actions -->
               <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+                <Button @click="openAddQuestionModal(assignment.id)" variant="outline" size="sm">
+                  <Plus class="h-4 w-4 mr-1.5" />
+                  添加闯关题目
+                </Button>
                 <router-link :to="`/teacher/discussion/${assignment.id}`">
                   <Button variant="ghost" size="sm" class="cursor-pointer">
                     <MessageSquare class="h-4 w-4 mr-1.5" />
@@ -792,25 +892,110 @@ const addStudentToCourse = async (studentId: string) => {
         </div>
       </div>
     </Dialog>
-  </div>
-  <!-- 添加学生弹窗 -->
-<Dialog v-model:open="showAddStudentModal">
-  <DialogHeader>
-    <DialogTitle>添加学生到课程</DialogTitle>
-  </DialogHeader>
-  <div class="space-y-4 py-2">
-    <Input 
-      v-model="searchKeyword" 
-      placeholder="输入学生名字搜索..." 
-      @input="searchStudents"
-    />
-    <div class="space-y-2 max-h-64 overflow-y-auto">
-      <div v-for="stu in searchStudentList" :key="stu.id" class="flex justify-between items-center border p-2 rounded">
-        <span>{{ stu.name }}</span>
-        <Button @click="addStudentToCourse(stu.id)">加入课程</Button>
+
+    <!-- 添加学生弹窗 -->
+    <Dialog v-model:open="showAddStudentModal">
+      <DialogHeader>
+        <DialogTitle>添加学生到课程</DialogTitle>
+      </DialogHeader>
+      <div class="space-y-4 py-2">
+        <Input 
+          v-model="searchKeyword" 
+          placeholder="输入学生名字搜索..." 
+          @input="searchStudents"
+        />
+        <div class="space-y-2 max-h-64 overflow-y-auto">
+          <div v-for="stu in searchStudentList" :key="stu.id" class="flex justify-between items-center border p-2 rounded">
+            <span>{{ stu.name }}</span>
+            <Button @click="addStudentToCourse(stu.id)">加入课程</Button>
+          </div>
+          <p v-if="searchStudentList.length === 0 && searchKeyword" class="text-sm text-slate-500">找不到学生</p>
+        </div>
       </div>
-      <p v-if="searchStudentList.length === 0 && searchKeyword" class="text-sm text-slate-500">找不到学生</p>
-    </div>
+    </Dialog>
+
+    <!-- 新建闯关题目弹窗 -->
+    <Dialog v-model:open="showAddQuestionDialog">
+      <DialogHeader>
+        <DialogTitle>新建闯关题目</DialogTitle>
+      </DialogHeader>
+      <DialogContent>
+        <div class="mb-3">
+          <Label>题型</Label>
+          <Select v-model="questionType">
+            <SelectTrigger>
+              <SelectValue placeholder="选择题型" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single_choice">单选题（文字选项）</SelectItem>
+              <SelectItem value="fill_in_blank">填空（文字输入）</SelectItem>
+              <SelectItem value="sort_text">文字拖拽排序</SelectItem>
+              <SelectItem value="image_choice">图片选择题</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div class="mb-3">
+          <Label>题目文字</Label>
+          <Textarea v-model="form.questionText" placeholder="在这里写题目" />
+        </div>
+
+        <div class="mb-3">
+          <Label>题目配图（可选）</Label>
+          <Input type="file" accept="image/*" @change="(e) => e.target.files?.[0] && uploadImage(e.target.files[0])"/>
+          <div v-if="form.questionImageUrl" class="mt-2">
+            <img :src="form.questionImageUrl" class="max-h-40 rounded" />
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <Label>答对奖励星星</Label>
+          <Input v-model.number="form.point" type="number" min="1"/>
+        </div>
+
+        <!-- 单选题 -->
+        <div v-if="questionType === 'single_choice'" class="space-y-2">
+          <Label>4个选项</Label>
+          <Input v-model="form.options[0]" placeholder="选项A"/>
+          <Input v-model="form.options[1]" placeholder="选项B"/>
+          <Input v-model="form.options[2]" placeholder="选项C"/>
+          <Input v-model="form.options[3]" placeholder="选项D"/>
+          <Label>正确答案（填入上面选项文字）</Label>
+          <Input v-model="form.answer" placeholder="例如 cat"/>
+        </div>
+
+        <!-- 填空 -->
+        <div v-if="questionType === 'fill_in_blank'" class="space-y-2">
+          <Label>标准答案</Label>
+          <Input v-model="form.answer" placeholder="apple"/>
+        </div>
+
+        <!-- 文字排序 -->
+        <div v-if="questionType === 'sort_text'" class="space-y-2">
+          <Label>排序文字片段（按正确顺序填写）</Label>
+          <Input v-model="form.options[0]" placeholder="第1段"/>
+          <Input v-model="form.options[1]" placeholder="第2段"/>
+          <Input v-model="form.options[2]" placeholder="第3段"/>
+          <Input v-model="form.options[3]" placeholder="第4段"/>
+          <p class="text-gray-500 text-sm">上面填写顺序 = 正确答案顺序</p>
+        </div>
+
+        <!-- 图片选择题 -->
+        <div v-if="questionType === 'image_choice'" class="space-y-2">
+          <Label>上传4张选项图片</Label>
+          <Input type="file" accept="image/*" @change="(e) => e.target.files?.[0] && uploadImage(e.target.files[0])"/>
+          <Input type="file" accept="image/*" @change="(e) => e.target.files?.[0] && uploadImage(e.target.files[0])"/>
+          <Input type="file" accept="image/*" @change="(e) => e.target.files?.[0] && uploadImage(e.target.files[0])"/>
+          <Input type="file" accept="image/*" @change="(e) => e.target.files?.[0] && uploadImage(e.target.files[0])"/>
+          <Label>正确图片URL（复制粘贴正确那张图片链接）</Label>
+          <Input v-model="form.answer"/>
+        </div>
+
+        <DialogFooter class="mt-4">
+          <Button variant="outline" @click="showAddQuestionDialog = false">取消</Button>
+          <Button @click="saveQuestion">保存题目</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
-</Dialog>
 </template>
