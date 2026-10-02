@@ -137,7 +137,11 @@ const removeLevel = (levelId:string) => {
 // 切换题型，清空无关字段
 const changeQuestionType = (level: LevelItem) => {
   if(level.questionType === 'single' || level.questionType === 'multiple'){
-    if(level.options.length <2) level.options = [{ label: '', isAnswer: false }, { label: '', isAnswer: false }]
+    if(!Array.isArray(level.options) || level.options.length <2) {
+      level.options = [{ label: '', isAnswer: false }, { label: '', isAnswer: false }]
+    }
+    level.blankAnswer = ''
+    level.sortItems = []
   }else if(level.questionType === 'blank'){
     level.options = []
     level.sortItems = []
