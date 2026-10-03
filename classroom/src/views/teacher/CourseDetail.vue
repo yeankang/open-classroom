@@ -268,7 +268,7 @@ async function handleEditAssignment() {
       const insertData = editLevelList.value.map((item, idx)=>({
         assignment_id: assignmentId,
         order_index: idx,
-        question_type: item.questionType,
+        question_type: item.questionType as QuestionType,
         title: item.title,
         description: item.description,
         options: item.options,
