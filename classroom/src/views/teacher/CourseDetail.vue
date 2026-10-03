@@ -102,7 +102,7 @@ const courseId = computed(() => route.params.id as string)
 type QuestionType = 'single' | 'multiple' | 'blank' | 'sort'
 interface LevelItem {
   id: string
-  questionType: QuestionType
+  questionType: string as QuestionType
   title: string
   description: string
   options: Array<{ label: string; isAnswer: boolean }>
@@ -745,7 +745,7 @@ function createNewLevel() {
     <!-- 题型下拉选择 -->
     <div>
       <Label>题型</Label>
-<select :value="level.questionType" @change="(e) => {level.questionType = e.target.value as QuestionType; changeQuestionType(level); }" class="border rounded px-2 py-1 w-full mt-1">
+      <select v-model="level.questionType" @change="changeQuestionType(level)" class="border rounded px-2 py-1 w-full mt-1">
         <option value="single">单选题</option>
         <option value="multiple">多选题</option>
         <option value="blank">填空题</option>
@@ -900,7 +900,7 @@ function createNewLevel() {
 
     <div>
       <Label>题型</Label>
-<select :value="level.questionType" @change="(e) => {level.questionType = e.target.value as QuestionType; changeQuestionType(level); }" class="border rounded px-2 py-1 w-full mt-1">
+      <select v-model="level.questionType" @change="changeQuestionType(level)" class="border rounded px-2 py-1 w-full mt-1">
         <option value="single">单选题</option>
         <option value="multiple">多选题</option>
         <option value="blank">填空题</option>
