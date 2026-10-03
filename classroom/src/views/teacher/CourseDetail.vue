@@ -102,7 +102,7 @@ const courseId = computed(() => route.params.id as string)
 type QuestionType = 'single' | 'multiple' | 'blank' | 'sort'
 interface LevelItem {
   id: string
-  questionType: string as QuestionType
+  questionType: QuestionType
   title: string
   description: string
   options: Array<{ label: string; isAnswer: boolean }>
@@ -111,12 +111,11 @@ interface LevelItem {
 }
 // 新增作业的关卡列表
 const levelList = ref<LevelItem[]>([])
-
 // 新增空白关卡
 const addNewLevel = () => {
   levelList.value.push({
     id: crypto.randomUUID(),
-    questionType: 'single',
+    questionType: 'single' as QuestionType,
     title: `关卡 ${levelList.value.length + 1}`,
     description: '',
     options: [{ label: '', isAnswer: false }, { label: '', isAnswer: false }],
@@ -475,7 +474,7 @@ const addStudentToCourse = async (studentId: string) => {
 function createNewLevel() {
   return {
     id: crypto.randomUUID(),
-    questionType: 'single',
+    questionType: 'single' as QuestionType,
     title: `关卡 ${editLevelList.value.length + 1}`,
     description: '',
     options: [{ label: '', isAnswer: false }, { label: '', isAnswer: false }],
