@@ -262,10 +262,10 @@ async function handleEditAssignment() {
     })
     // 删除旧关卡，再写入新关卡
     if (!editingAssignment.value) return
-    await supabase.from('assignment_questions').delete().eq('assignment_id', editingAssignment.value.id)
+    await supabase.from('assignment_questions').delete().eq('assignment_id', assignmentId)
     if(editLevelList.value.length>0){
       const insertData = editLevelList.value.map((item, idx)=>({
-        assignment_id: editingAssignment.value.id,
+        assignment_id: assignmentId,
         order_index: idx,
         question_type: item.questionType,
         title: item.title,
@@ -466,7 +466,7 @@ function createNewLevel() {
   return {
     id: crypto.randomUUID(),
     questionType: 'single',
-    title: `關卡 ${editlevelList.value.length + 1}`,
+    title: `关卡 ${editLevelList.value.length + 1}`,
     description: '',
     options: [{ label: '', isAnswer: false }, { label: '', isAnswer: false }],
     blankAnswer: '',
@@ -875,7 +875,7 @@ function createNewLevel() {
 <div class="space-y-4 border-t pt-4">
   <div class="flex justify-between items-center">
     <Label>🎮 关卡题目管理</Label>
-<Button variant="outline" size="sm" @click="editlevelList.push(createNewLevel())"> 添加一关</Button>
+<Button variant="outline" size="sm" @click="editLevelList.push(createNewLevel())"> 添加一关</Button>
   </div>
 
   <div v-if="editLevelList.length === 0" class="text-sm text-slate-500 border rounded p-4 text-center">
