@@ -745,7 +745,7 @@ function createNewLevel() {
     <!-- 题型下拉选择 -->
     <div>
       <Label>题型</Label>
-      <select v-model="level.questionType" @change="changeQuestionType(level)" class="border rounded px-2 py-1 w-full mt-1">
+<select :value="level.questionType" @change="(e) => {level.questionType = e.target.value as QuestionType; changeQuestionType(level); }" class="border rounded px-2 py-1 w-full mt-1">
         <option value="single">单选题</option>
         <option value="multiple">多选题</option>
         <option value="blank">填空题</option>
@@ -900,7 +900,7 @@ function createNewLevel() {
 
     <div>
       <Label>题型</Label>
-      <select v-model="level.questionType" @change="changeQuestionType(level)" class="border rounded px-2 py-1 w-full mt-1">
+<select :value="level.questionType" @change="(e) => {level.questionType = e.target.value as QuestionType; changeQuestionType(level); }" class="border rounded px-2 py-1 w-full mt-1">
         <option value="single">单选题</option>
         <option value="multiple">多选题</option>
         <option value="blank">填空题</option>
