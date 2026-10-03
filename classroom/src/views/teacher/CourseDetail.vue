@@ -174,7 +174,16 @@ const openEditDialog = async (assignment: Assignment) => {
     .select('*')
     .eq('assignment_id', assignment.id)
     .order('order_index', { ascending: true })
-  editLevelList.value = data || []
+  // ✅ 重点：把数据库返回的数据做类型转换，强制question_type转为QuestionType
+  editLevelList.value = (data || []).map(item => ({
+    id: item.id,
+    questionType: item.question_type as QuestionType,
+    title: item.title,
+    description: item.description ?? '',
+    options: item.options ?? [],
+    blankAnswer: item.blank_answer ?? '',
+    sortItems: item.sort_items ?? []
+  }))
   isEditDialogOpen.value = true
 }
 
