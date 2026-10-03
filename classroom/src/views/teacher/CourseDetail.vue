@@ -262,6 +262,7 @@ async function handleEditAssignment() {
     })
     // 删除旧关卡，再写入新关卡
     if (!editingAssignment.value) return
+    const assignmentId = editingAssignment.value.id
     await supabase.from('assignment_questions').delete().eq('assignment_id', assignmentId)
     if(editLevelList.value.length>0){
       const insertData = editLevelList.value.map((item, idx)=>({
