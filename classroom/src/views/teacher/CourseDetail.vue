@@ -79,7 +79,7 @@ const isEditing = ref(false)
 const editForm = ref({
   title: '',
   description: '',
-  submitType: 'game' as SubmitType,
+  submitType: 'Game' as SubmitType,
   releaseDate: '',
   dueDate: '',
   showcaseEnabled: true,
@@ -89,7 +89,7 @@ const editForm = ref({
 const newAssignment = ref({
   title: '',
   description: '',
-  submitType: 'game' as SubmitType,
+  submitType: 'Game' as SubmitType,
   releaseDate: '',
   dueDate: '',
   showcaseEnabled: true,
@@ -200,7 +200,7 @@ async function handleCreateAssignment() {
       title: newAssignment.value.title.trim(),
       description: newAssignment.value.description.trim(),
       orderIndex: maxOrderIndex + 1,
-      submitType: 'game', // 全部作业强制为闯关模式
+      submitType: 'Game', // 全部作业强制为闯关模式
       releaseDate: newAssignment.value.releaseDate
         ? new Date(newAssignment.value.releaseDate).toISOString()
         : new Date().toISOString(),
@@ -235,7 +235,7 @@ async function handleCreateAssignment() {
     newAssignment.value = {
       title: '',
       description: '',
-      submitType: 'game',
+      submitType: 'Game',
       releaseDate: '',
       dueDate: '',
       showcaseEnabled: true,
@@ -258,7 +258,7 @@ async function handleEditAssignment() {
     await updateAssignment(editingAssignment.value.id, {
       title: editForm.value.title.trim(),
       description: editForm.value.description.trim(),
-      submitType: 'game',
+      submitType: 'Game',
       releaseDate: editForm.value.releaseDate
         ? new Date(editForm.value.releaseDate).toISOString()
         : editingAssignment.value.releaseDate,
