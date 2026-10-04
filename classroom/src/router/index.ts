@@ -27,6 +27,8 @@ const router = createRouter({
     { path: '/teacher/course/:id', name: 'TeacherCourseDetail', component: TeacherCourseDetail, meta: { requiresAuth: true, role: 'teacher' } },
     { path: '/teacher/submissions/:id', name: 'AssignmentSubmissions', component: AssignmentSubmissions, meta: { requiresAuth: true, role: 'teacher' } },
     { path: '/teacher/discussion/:id', name: 'TeacherDiscussion', component: Discussion, meta: { requiresAuth: true, role: 'teacher' } },
+    { path: '/student/game-assignment/:assignmentId', name: 'StudentGameAssignment', component: () => import('@/views/student/GameAssignment.vue'), meta: { requiresAuth: true, role: 'student' } },
+    { path: '/teacher/preview-game/:assignmentId', name: 'TeacherPreviewGame', component: () => import('@/views/student/GameAssignment.vue'), meta: { requiresAuth: true, role: 'teacher' } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
