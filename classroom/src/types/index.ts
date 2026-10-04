@@ -113,3 +113,26 @@ export interface ShowcaseItem {
   assignment: Assignment
   course: Course
 }
+
+// types.ts
+export type GameQuestionType = 'choice' | 'fillblank' | 'sort'
+export type GameScene = 'forest' | 'castle' | 'space' | 'ocean'
+
+export interface GameQuestion {
+  id: string
+  type: GameQuestionType
+  scene: GameScene
+  questionText: string
+  choices?: {
+    id: string
+    text: string
+  }[]
+  answer: string | string[]
+  timeLimit: number // 单题限时，单位秒
+}
+
+export interface GameAssignment {
+  id: string
+  title: string
+  questions: GameQuestion[]
+}
