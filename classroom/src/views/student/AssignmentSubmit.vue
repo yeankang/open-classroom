@@ -56,7 +56,7 @@ const submitTypeIcons: Record<SubmitType, any> = {
   file: FileText,
   link: LinkIcon,
   image: ImageIcon,
-  game: BookOpen, // 新增这一行，game 使用 BookOpen 图标
+  Game: BookOpen, // 新增这一行，Game 使用 BookOpen 图标
 }
 
 const submitTypeLabels: Record<SubmitType, string> = {
@@ -64,7 +64,7 @@ const submitTypeLabels: Record<SubmitType, string> = {
   file: '档案上传',
   link: '连接提交',
   image: '图片上传',
-  game: '闯关游戏', // 新增這一行，显示文字
+  Game: '闯关游戏', // 新增這一行，显示文字
 }
 
 const submitInputPlaceholders: Record<SubmitType, string> = {
@@ -72,7 +72,7 @@ const submitInputPlaceholders: Record<SubmitType, string> = {
   file: '请输入档案描述或链接',
   link: '请输入作业连接',
   image: '请输入图片链接',
-  game: '闯关作答，无需在此输入', // 新增這一行
+  Game: '闯关作答，无需在此输入', // 新增這一行
 }
 
 onMounted(async () => {
