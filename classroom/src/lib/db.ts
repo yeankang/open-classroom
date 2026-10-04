@@ -159,6 +159,7 @@ export async function updateAssignment(id: string, patch: Partial<Omit<Assignmen
   const update: Record<string, unknown> = {}
   if (patch.title !== undefined) update.title = patch.title
   if (patch.description !== undefined) update.description = patch.description
+  if (patch.submitType !== undefined) update.submit_Type = patch.submitType
   if (patch.isActive !== undefined) update.is_active = patch.isActive
   if (patch.dueDate !== undefined) update.due_date = patch.dueDate
   if (patch.showcaseEnabled !== undefined) update.showcase_enabled = patch.showcaseEnabled
