@@ -28,6 +28,7 @@ import {
   getAssignmentsByCourse,
   saveCourse,
   generateCourseCode,
+  deleteCourse,
 } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 import type { Course } from '@/types'
@@ -226,6 +227,37 @@ function handleLogout() {
   authStore.logout()
   router.push('/login')
 }
+
+// ========== 课程删除功能 新增 ==========
+const showDeleteCourseDialog = ref(false)
+const targetCourseId = ref<string | null>(null)
+const targetCourseName = ref('')
+const deletingCourse = ref(false)
+
+// 打开删除确认弹窗
+function openDeleteCourseConfirm(course: Course, e: Event) {
+  e.stopPropagation() // ⭐重点！阻止卡片点击跳转到课程详情
+  targetCourseId.value = course.id
+  targetCourseName.value = course.name
+  showDeleteCourseDialog.value = true
+}
+
+// 执行删除
+async function handleDeleteCourse() {
+  if (!targetCourseId.value) return
+  deletingCourse.value = true
+  try {
+    await deleteCourse(targetCourseId.value)
+    await loadCourses() // 删除成功，刷新课程列表
+    showDeleteCourseDialog.value = false
+  } catch (err) {
+    console.error('删除课程失败', err)
+    alert('删除课程失败，请检查权限！')
+  } finally {
+    deletingCourse.value = false
+  }
+}
+  
 </script>
 
 <template>
@@ -281,7 +313,7 @@ function handleLogout() {
           <Card
             v-for="course in myCourses"
             :key="course.id"
-            class="cursor-pointer hover:shadow-md transition-shadow"
+            class="cursor-pointer hover:shadow-md transition-shadow relative"
             @click="router.push(`/teacher/course/${course.id}`)"
           >
             <CardHeader>
@@ -302,7 +334,16 @@ function handleLogout() {
               <div class="mt-4">
                 <Badge variant="secondary">课程码：{{ course.courseCode }}</Badge>
               </div>
-            </CardContent>
+  <!-- ====== 新增删除按钮 ====== -->
+  <Button
+    variant="destructive"
+    size="sm"
+    class="absolute top-2 right-2"
+    @click="openDeleteCourseConfirm(course, $event)"
+  >
+    删除课程
+  </Button>
+</CardContent>
           </Card>
         </div>
       </div>
@@ -407,5 +448,24 @@ function handleLogout() {
         </div>
       </div>
     </Dialog>
+
+    <!-- 删除课程确认弹窗 -->
+<Dialog v-model:open="showDeleteCourseDialog">
+  <div class="space-y-4">
+    <DialogHeader>
+      <DialogTitle>确认删除课程</DialogTitle>
+    </DialogHeader>
+    <div>
+      <p>确定要删除课程：<strong>{{ targetCourseName }}</strong>？</p>
+      <p class="text-red-600 text-sm mt-2">⚠️ 删除后，课程内所有作业、学生记录、提交资料会全部永久清除，无法恢复！</p>
+    </div>
+    <div class="flex justify-end gap-2">
+      <Button variant="outline" @click="showDeleteCourseDialog = false">取消</Button>
+      <Button variant="destructive" :loading="deletingCourse" @click="handleDeleteCourse">
+        确认删除
+      </Button>
+    </div>
+  </div>
+</Dialog>
   </div>
 </template>
