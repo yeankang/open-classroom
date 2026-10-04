@@ -52,7 +52,7 @@ const submitTypeIcons: Record<SubmitType, any> = {
   file: FileText,
   link: LinkIcon,
   image: ImageIcon,
-  game: BookOpen,
+  Game: BookOpen,
 }
 
 const submitTypeLabels: Record<SubmitType, string> = {
@@ -60,7 +60,7 @@ const submitTypeLabels: Record<SubmitType, string> = {
   file: '档案上传',
   link: '连接提交',
   image: '图片上传',
-  game: '闯关游戏',
+  Game: '闯关游戏',
 }
 
 onMounted(async () => {
