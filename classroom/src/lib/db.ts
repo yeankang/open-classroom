@@ -247,6 +247,23 @@ export async function getDiscussionCountsByAssignments(assignmentIds: string[]):
   return counts
 }
 
+export async function deleteCourse(courseId: string): Promise<void> {
+  // 先删除讨论消息
+  await supabase.from('discussion_messages').delete().eq('course_id', courseId)
+  // 删除学生提交记录
+  const { data: assignments } = await supabase.from('assignments').select('id').eq('course_id', courseId)
+  if (assignments && assignments.length > 0) {
+    const assignmentIds = assignments.map(a => a.id)
+    await supabase.from('submissions').delete().in('assignment_id', assignmentIds)
+  }
+  // 删除作业
+  await supabase.from('assignments').delete().eq('course_id', courseId)
+  // 删除课程学生成员
+  await supabase.from('course_members').delete().eq('course_id', courseId)
+  // 最后删除课程本身
+  const { error } = await supabase.from('courses').delete().eq('id', courseId)
+  if (error) throw error
+}
 // ─── Utilities ────────────────────────────────────────────────────────────────
 export function generateCourseCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
