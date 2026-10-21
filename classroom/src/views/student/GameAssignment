@@ -4,10 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/Button'
 import type { GameAssignment, GameQuestion, GameQuestionType, GameScene } from '@/types'
 
+// ✅ 【重点】现在先导入三个题型组件（后面你要新建这三个文件）
+import GameChoice from './GameChoice.vue'
+import GameFillBlank from './GameFillBlank.vue'
+import GameSort from './GameSort.vue'
+
 const route = useRoute()
 const router = useRouter()
 const assignmentId = route.params.assignmentId as string
-// 预览标记，老师预览时带 ?preview=true
 const isPreview = computed(() => !!route.query.preview)
 
 // ========== 游戏全局状态 ==========
@@ -19,7 +23,7 @@ const currentQuestionIndex = ref(0)
 const userAnswer = ref<string | string[] | null>(null)
 const isCorrect = ref<boolean | null>(null)
 
-// 场景配色映射（开发阶段CSS渐变，后续替换图片）
+// 场景配色映射
 const sceneBgMap: Record<GameScene, string> = {
   forest: 'linear-gradient(180deg, #22543d, #276749)',
   castle: 'linear-gradient(180deg, #4a5568, #2d3748)',
@@ -27,7 +31,7 @@ const sceneBgMap: Record<GameScene, string> = {
   ocean: 'linear-gradient(180deg, #2b6cb0, #2c5282)',
 }
 
-// 【模拟测试题目】后面替换成从Supabase读取
+// 模拟测试题目
 const gameAssignment = ref<GameAssignment>({
   id: 'demo-001',
   title: '闯关练习 Demo',
@@ -71,7 +75,6 @@ const isLastQuestion = computed(() => currentQuestionIndex.value >= questionTota
 
 // ========== 计时器逻辑 ==========
 function startQuestionTimer() {
-  // 预览模式：不计时
   if(isPreview.value) return
   if(timer) clearInterval(timer)
   if (!currentQuestion.value) return
@@ -86,7 +89,6 @@ function startQuestionTimer() {
   },1000)
 }
 
-// 答错：扣爱心，预览不扣
 function handleWrongAnswer() {
   isCorrect.value = false
   if(isPreview.value) return
@@ -99,19 +101,16 @@ function handleCorrectAnswer() {
   isCorrect.value = true
 }
 
-// 游戏结束
 function endGame() {
   if(timer) clearInterval(timer)
   router.push(`/student/game-result/${assignmentId}?fail=true`)
 }
 
-// 切换下一题
 function nextQuestion() {
   isCorrect.value = null
   userAnswer.value = null
   if(timer) clearInterval(timer)
 
-  if (!gameAssignment.value) return
   if (currentQuestionIndex.value < gameAssignment.value.questions.length -1) {
     currentQuestionIndex.value ++
     startQuestionTimer()
@@ -121,7 +120,6 @@ function nextQuestion() {
   }
 }
 
-// 提交答案
 async function submitAnswer() {
   if (!currentQuestion.value || userAnswer.value === null) return
   const correctAns = currentQuestion.value.answer
@@ -137,28 +135,26 @@ async function submitAnswer() {
   }else{
     handleWrongAnswer()
   }
-  // 预览模式不保存数据
   if (!isPreview.value) {
     // await saveStudentAnswer(assignmentId, currentQuestion.value.id, userAnswer.value, ok)
   }
 }
 
-// 页面销毁，清除定时器
 onUnmounted(()=>{
   if(timer) clearInterval(timer)
 })
 
-// 页面载入，启动第一题计时器
 onMounted(()=>{
   startQuestionTimer()
 })
 
-// 题型组件映射（后面我们再新建这3个组件）
+// ✅ 修复：直接返回导入好的组件，不再返回字符串
 const getQuestionComponent = (type:GameQuestionType) => {
   switch(type){
-    case 'choice': return 'GameChoice'
-    case 'fillblank': return 'GameFillBlank'
-    case 'sort': return 'GameSort'
+    case 'choice': return GameChoice
+    case 'fillblank': return GameFillBlank
+    case 'sort': return GameSort
+    default: return null
   }
 }
 </script>
@@ -199,7 +195,7 @@ const getQuestionComponent = (type:GameQuestionType) => {
       </div>
     </div>
 
-    <!-- 场景区域：一题一背景，淡入淡出动画 -->
+    <!-- 场景区域 -->
     <transition name="scene-fade" mode="out-in">
       <div
         v-if="currentQuestion"
@@ -207,22 +203,23 @@ const getQuestionComponent = (type:GameQuestionType) => {
         class="game-scene relative h-[420px] rounded-xl overflow-hidden"
         :style="{background: sceneBgMap[currentQuestion.scene]}"
       >
-        <!-- 半透明遮罩，提高文字可读性 -->
         <div class="absolute inset-0 bg-black/25 z-0"></div>
-        <!-- 小人占位，之后美化 -->
+        <!-- 小人占位 -->
         <div class="absolute bottom-8 left-12 w-14 h-14 bg-blue-400 rounded-full z-10"></div>
 
-        <!-- 题型组件（暂时还没创建，会先报组件未找到，正常！） -->
+        <!-- ✅ 动态组件 -->
         <component
+          v-if="getQuestionComponent(currentQuestion.type)"
           :is="getQuestionComponent(currentQuestion.type)"
           :question="currentQuestion"
           v-model:user-answer="userAnswer"
           :is-correct="isCorrect"
+          class="absolute inset-0 z-10 flex items-center justify-center"
         />
       </div>
     </transition>
 
-    <!-- 题目文字 + 操作按钮 -->
+    <!-- 按钮区域 -->
     <div class="mt-6">
       <p class="text-lg">{{ currentQuestion?.questionText }}</p>
       <div class="flex gap-3 mt-4">
